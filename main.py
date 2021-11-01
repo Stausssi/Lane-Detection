@@ -2,6 +2,7 @@ import glob
 
 import cv2 as cv
 from Camera import Camera
+from Detector import Detector
 
 
 def main():
@@ -16,6 +17,9 @@ def main():
     videoCapture = cv.VideoCapture("img/Udacity/project_video.mp4")
     valid = True
 
+    # Whether other objects (cars, etc.) should be detected
+    detectObjects = True
+
     if videoCapture.isOpened():
         print("Playback started!")
 
@@ -26,10 +30,19 @@ def main():
                 # Undistort the image
                 frame = camera.undistort(frame)
 
+                # Now preprocess the image (segmentation, color filtering, etc.)
+
+                # Detect the lines
+                frame = Detector.detectLines(frame)
+
+                # Also detect objects, if wanted
+                if detectObjects:
+                    frame = Detector.detectObjects(frame)
+
                 # Show the image
                 cv.imshow("Video Playback", frame)
 
-                # Check if escape key was pressed
+                # Check if escape key or 'q' was pressed
                 key = cv.waitKey(10)
                 if key == 27 or key == ord("q"):
                     print("ESC or Q pressed! Exiting playback!")

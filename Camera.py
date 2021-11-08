@@ -83,7 +83,7 @@ class Camera:
         This method undistorts a given image.
 
         Args:
-            img: The image to undistort.
+            img (np.ndarray): The image to undistort.
             alpha (int): The alpha of the optimal camera matrix
 
         Returns:
@@ -95,3 +95,36 @@ class Camera:
 
         # Undistort and crop the image to the ROI
         return cv.undistort(img, self.matrix, self.distortion, None, newMatrix)[y:h + y // 4, x:w - x // 4]
+
+    @staticmethod
+    def birdsEyeView(img):
+        """
+        This method transform an image into the birds-eye view.
+
+        Args:
+            img (np.ndarray): The image to transform
+
+        Returns:
+            img: An image in birds eye view
+        """
+
+        # Grab the previous resolution
+        height, width, _ = img.shape
+
+        # Resize the rectangles to fit the image size
+        img = cv.resize(img, (1280, 720))
+
+        # Create the rectangles (copied from the script)
+        src_rect = np.float32([
+            [278, 668], [1026, 668],
+            [598, 448], [684, 448]
+        ])
+        dst_rect = np.float32([
+            [300, 720], [980, 720],
+            [300, 0], [980, 0]
+        ])
+
+        # Create the transformation matrix
+        matrix = cv.getPerspectiveTransform(src_rect, dst_rect)
+
+        return cv.resize(cv.warpPerspective(img, matrix, (1280, 720)), (width, height))

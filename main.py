@@ -15,6 +15,8 @@ def main():
 
     # Read the video
     videoCapture = cv.VideoCapture("img/Udacity/project_video.mp4")
+    # videoCapture = cv.VideoCapture("img/Udacity/challenge_video.mp4")
+    # videoCapture = cv.VideoCapture("img/Udacity/harder_challenge_video.mp4")
     valid = True
 
     # Whether other objects (cars, etc.) should be detected
@@ -33,7 +35,8 @@ def main():
                 # Now preprocess the image (segmentation, color filtering, etc.)
 
                 # Detect the lines
-                frame = Detector.detectLines(frame)
+                # frame = Detector.detectLines(frame)
+                cv.imshow("Birds-Eye", camera.birdsEyeView(frame))
 
                 # Also detect objects, if wanted
                 if detectObjects:

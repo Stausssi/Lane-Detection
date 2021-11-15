@@ -1,9 +1,12 @@
-import matplotlib.pylab as plt
 import cv2 as cv
 import numpy as np
+from typing import List, Tuple
 
 
 class Detector:
+    def __init__(self):
+        self.prevLines = ((), ())
+
     # ---------- [Lane Detection] ---------- #
 
     def detectLines(self, img):
@@ -24,7 +27,67 @@ class Detector:
         lineShapes = self.__filterLineShape(segmented)
         color = self.__filterColor(segmented)
 
-        return cv.addWeighted(lineShapes, 0.5, color, 1, 0)
+        combined = cv.addWeighted(lineShapes, 0.5, color, 1, 0)
+        houghImg = combined.copy()
+        combined = cv.cvtColor(combined, cv.COLOR_GRAY2RGB)
+
+        prevX = 0
+
+        # Regular Hough
+        # lines = cv.HoughLines(houghImg, 1, np.pi/180, 150)
+        # for line in lines:
+        #     for r, theta in line:
+        #         # Stores the value of cos(theta) in a
+        #         a = np.cos(theta)
+        #
+        #         # Stores the value of sin(theta) in b
+        #         b = np.sin(theta)
+        #
+        #         # x0 stores the value rcos(theta)
+        #         x0 = a * r
+        #
+        #         # y0 stores the value rsin(theta)
+        #         y0 = b * r
+        #
+        #         # x1 stores the rounded off value of (rcos(theta)-1000sin(theta))
+        #         x1 = int(x0 + 100 * (-b))
+        #
+        #         # y1 stores the rounded off value of (rsin(theta)+1000cos(theta))
+        #         y1 = int(y0 + 100 * a)
+        #
+        #         # x2 stores the rounded off value of (rcos(theta)+1000sin(theta))
+        #         x2 = int(x0 - 100 * (-b))
+        #
+        #         # y2 stores the rounded off value of (rsin(theta)-1000cos(theta))
+        #         y2 = int(y0 - 100 * a)
+        #
+        #         # cv2.line draws a line in img from the point(x1,y1) to (x2,y2).
+        #         # (0,0,255) denotes the colour of the line to be
+        #         # drawn. In this case, it is red.
+        #         startX = min(x1, x2)
+        #         cv.line(combined, (x1, y1), (x2, y2), (0, 0, 255), 5)
+        #         if startX > 100:
+        #             if prevX == 0 or abs(prevX - startX) > 500:
+        #                 prevX = startX
+
+        # P variant
+        lines = cv.HoughLinesP(houghImg, 1, np.pi/180, 150)
+
+        drawnLines: List[Tuple[int, int]] = []
+
+        for line in lines:
+            line = line[0]
+            x1, y1 = (line[0], line[1])
+            x2, y2 = (line[2], line[3])
+
+            startX = min(x1, x2)
+            if abs(y1 - y2) > 50 and y1 > img.shape[0] - 250 and 100 < startX < img.shape[1] - 100:
+                # Draw line only if the startX doesnt intersect with any lines (+ thresh)
+                if not any([line1 - 100 < startX < line2 + 100 for line1, line2 in drawnLines]):
+                    drawnLines.append((startX, max(x1, x2)))
+                    cv.line(combined, (x1, y1), (x2, y2), (0, 0, 255), 5)
+
+        return combined
 
     @staticmethod
     def __segmentImage(img):

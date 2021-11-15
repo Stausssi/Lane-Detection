@@ -19,8 +19,9 @@ def main():
     # videoCapture = cv.VideoCapture("img/Udacity/harder_challenge_video.mp4")
     valid = True
 
+    detector = Detector()
     # Whether other objects (cars, etc.) should be detected
-    detectObjects = True
+    detectObjects = False
 
     if videoCapture.isOpened():
         print("Playback started!")
@@ -32,18 +33,18 @@ def main():
                 # Undistort the image
                 frame = camera.undistort(frame)
 
-                # Now preprocess the image (segmentation, color filtering, etc.)
-
                 # Detect the lines
-                # frame = Detector.detectLines(frame)
-                cv.imshow("Birds-Eye", camera.birdsEyeView(frame))
+                lines = detector.detectLines(frame)
 
                 # Also detect objects, if wanted
                 if detectObjects:
-                    frame = Detector.detectObjects(frame)
+                    frame = detector.detectObjects(frame)
 
-                # Show the image
+                # Show the video feeds
                 cv.imshow("Video Playback", frame)
+                cv.imshow("Birds-Eye", camera.birdsEyeView(frame))
+                cv.imshow("Lines", lines)
+                cv.imshow("Lines Birds-Eye", camera.birdsEyeView(lines))
 
                 # Check if escape key or 'q' was pressed
                 key = cv.waitKey(10)

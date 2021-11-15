@@ -109,7 +109,10 @@ class Camera:
         """
 
         # Grab the previous resolution
-        height, width, _ = img.shape
+        if len(img.shape) > 2:
+            height, width, _ = img.shape
+        else:
+            height, width = img.shape
 
         # Resize the rectangles to fit the image size
         img = cv.resize(img, (1280, 720))

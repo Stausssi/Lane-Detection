@@ -9,29 +9,29 @@ class Detector:
 
     # ---------- [Lane Detection] ---------- #
 
-    def detectLines(self, img):
+    def detectLines(self, img, segment=True):
         """
         This method detects the lines in the given image. This task is split into subtasks.
 
         Args:
             img (np.ndarray): The image to detect lines on
+            segment (bool): Whether the picture should be segmented
 
         Returns:
             np.ndarray: The image with lines drawn onto it
         """
 
         # First, segment the image
-        segmented = self.__segmentImage(img)
+        if segment:
+            img = self._segmentImage(img)
 
         # Use filtering (by shape and color)
-        lineShapes = self.__filterLineShape(segmented)
-        color = self.__filterColor(segmented)
+        lineShapes = self._filterLineShape(img)
+        color = self._filterColor(img)
 
         combined = cv.addWeighted(lineShapes, 0.5, color, 1, 0)
         houghImg = combined.copy()
         combined = cv.cvtColor(combined, cv.COLOR_GRAY2RGB)
-
-        prevX = 0
 
         # Regular Hough
         # lines = cv.HoughLines(houghImg, 1, np.pi/180, 150)
@@ -71,26 +71,26 @@ class Detector:
         #                 prevX = startX
 
         # P variant
-        lines = cv.HoughLinesP(houghImg, 1, np.pi/180, 150)
+        lines = cv.HoughLinesP(houghImg, 1, np.pi / 180, 150)
 
-        drawnLines: List[Tuple[int, int]] = []
+        if lines is not None:
+            drawnLines: List[Tuple[int, int]] = []
+            for line in lines:
+                line = line[0]
+                x1, y1 = (line[0], line[1])
+                x2, y2 = (line[2], line[3])
 
-        for line in lines:
-            line = line[0]
-            x1, y1 = (line[0], line[1])
-            x2, y2 = (line[2], line[3])
-
-            startX = min(x1, x2)
-            if abs(y1 - y2) > 50 and y1 > img.shape[0] - 250 and 100 < startX < img.shape[1] - 100:
-                # Draw line only if the startX doesnt intersect with any lines (+ thresh)
-                if not any([line1 - 100 < startX < line2 + 100 for line1, line2 in drawnLines]):
-                    drawnLines.append((startX, max(x1, x2)))
-                    cv.line(combined, (x1, y1), (x2, y2), (0, 0, 255), 5)
+                startX = min(x1, x2)
+                if abs(y1 - y2) > 50 and y1 > img.shape[0] - 250 and 100 < startX < img.shape[1] - 100:
+                    # Draw line only if the startX doesnt intersect with any lines (+ thresh)
+                    if not any([line1 - 100 < startX < line2 + 100 for line1, line2 in drawnLines]):
+                        drawnLines.append((startX, max(x1, x2)))
+                        cv.line(combined, (x1, y1), (x2, y2), (0, 0, 255), 5)
 
         return combined
 
     @staticmethod
-    def __segmentImage(img):
+    def _segmentImage(img):
         """
         This method segments the image by extracting the ROI for lane detection.
 
@@ -118,7 +118,7 @@ class Detector:
         return cv.bitwise_and(img, mask)
 
     @staticmethod
-    def __filterLineShape(img):
+    def _filterLineShape(img):
         """
         This method uses canny to filter edges out of the image.
 
@@ -135,7 +135,7 @@ class Detector:
         return canny
 
     @staticmethod
-    def __filterColor(img):
+    def _filterColor(img):
         """
         This method filters yellow and white out of the given image.
 

@@ -5,7 +5,7 @@ from typing import List, Tuple
 
 class Detector:
     def __init__(self):
-        self.prevLines = ((), ())
+        self._currentLines = []
 
     # ---------- [Lane Detection] ---------- #
 
@@ -70,11 +70,16 @@ class Detector:
         #             if prevX == 0 or abs(prevX - startX) > 500:
         #                 prevX = startX
 
-        # P variant
+        # Performance variant
         lines = cv.HoughLinesP(houghImg, 1, np.pi / 180, 150)
 
+        # This is a list containing a dict for the left and right lane mapping x to y values
+        lanes = [{}, {}]
+
         if lines is not None:
-            drawnLines: List[Tuple[int, int]] = []
+            # validLines: List[Tuple[Tuple[int, int], Tuple[int, int]]] = []
+
+            # Go over every hough line
             for line in lines:
                 line = line[0]
                 x1, y1 = (line[0], line[1])
@@ -82,10 +87,52 @@ class Detector:
 
                 startX = min(x1, x2)
                 if abs(y1 - y2) > 50 and y1 > img.shape[0] - 250 and 100 < startX < img.shape[1] - 100:
-                    # Draw line only if the startX doesnt intersect with any lines (+ thresh)
-                    if not any([line1 - 100 < startX < line2 + 100 for line1, line2 in drawnLines]):
-                        drawnLines.append((startX, max(x1, x2)))
-                        cv.line(combined, (x1, y1), (x2, y2), (0, 0, 255), 5)
+                    # Calculate the angle of the line to the image
+                    lineAngle = cv.fastAtan2(y2 - y1, x2 - x1)
+
+                    # Select the dictionary depending on the angle
+                    lanes[int(lineAngle > 270)].update({
+                        x1: y1
+                    })
+
+                    lanes[int(lineAngle > 270)].update({
+                        x2: y2
+                    })
+
+                    #
+                    # # Draw line only if the startX doesnt intersect with any lines (+ thresh)
+                    # if not any([lineX1 - 100 < startX < lineX2 + 100 for (lineX1, _), (lineX2, _) in validLines]):
+                    #     validLines.append(((startX, max(y1, y2)), (max(x1, x2), min(y1, y2))))
+
+            for lane in lanes:
+                if len(lane) > 0:
+                    points_x = list(lane.keys())
+                    range_x = np.arange(min(points_x), max(points_x))
+
+                    # Estimate the polynomial function
+                    fittedPoly = np.polyfit(points_x, list(lane.values()), 2)
+                    estimator = np.poly1d(fittedPoly)
+                    est_y = estimator(range_x)
+
+                    # Use np.column_stack to combine the lists
+                    cv.polylines(
+                        combined,
+                        [np.int32(np.asarray([range_x, est_y]).T)],
+                        False,
+                        color=(0, 0, 255),
+                        thickness=5
+                    )
+
+            # self._currentLines = validLines
+            # # TODO: compare with previous lines and change if the difference is large enough
+            # if len(validLines) == 1:
+            #     x1, x2, y1, y2 = validLines[0]
+            #     for index, (prevX1, prevX2, prevY1, prevY2) in enumerate(self._currentLines):
+            #         if abs(x1 - prevX1) > 50 or abs(x2 - prevX2) > 50:
+            #             self._currentLines[index] = (x1, x2, y1, y2)
+
+        # for line in self._currentLines:
+        #     cv.line(combined, (line[0], line[1]), (line[2], line[3]), (0, 0, 255), 5)
 
         return combined
 
@@ -108,8 +155,8 @@ class Detector:
         )
 
         mask = np.zeros_like(img, dtype=np.uint8)
-        if len(img.shape) > 2:
-            channel_count = img.shape[2]
+        if len(shape) > 2:
+            channel_count = shape[2]
             ignore_mask_color = (255,) * channel_count
         else:
             ignore_mask_color = 255
@@ -161,7 +208,8 @@ class Detector:
         mask_wy = cv.bitwise_or(mask_white, mask_yellow)
 
         # Use closing to close holes
-        return cv.morphologyEx(mask_wy, cv.MORPH_CLOSE, cv.getStructuringElement(cv.MORPH_CROSS, (5, 5)), iterations=5)
+        # return cv.morphologyEx(mask_wy, cv.MORPH_CLOSE, cv.getStructuringElement(cv.MORPH_CROSS, (5, 5)), iterations=5)
+        return mask_wy
 
     # ---------- [Object Detection] ---------- #
 

@@ -118,6 +118,7 @@ class Camera:
         img = cv.resize(img, (1280, 720))
 
         # Create the rectangles (copied from the script)
+        # TODO: Adjust to camera distortion
         src_rect = np.float32([
             [278, 668], [1026, 668],
             [598, 448], [684, 448]

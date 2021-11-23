@@ -14,8 +14,8 @@ def main():
     print("Starting video playback...")
 
     # Read the video
-    # videoCapture = cv.VideoCapture("img/Udacity/project_video.mp4")
-    videoCapture = cv.VideoCapture("img/Udacity/challenge_video.mp4")
+    videoCapture = cv.VideoCapture("img/Udacity/project_video.mp4")
+    # videoCapture = cv.VideoCapture("img/Udacity/challenge_video.mp4")
     # videoCapture = cv.VideoCapture("img/Udacity/harder_challenge_video.mp4")
     valid = True
 

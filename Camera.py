@@ -93,11 +93,13 @@ class Camera:
         # The OpenCV method returns the new matrix and a ROI, which will be unpacked
         newMatrix, (x, y, h, w) = cv.getOptimalNewCameraMatrix(self.matrix, self.distortion, img.shape[:2], alpha)
 
-        # Undistort and crop the image to the ROI
-        return cv.undistort(img, self.matrix, self.distortion, None, newMatrix)[y:h + y // 4, x:w - x // 4]
+        # Undistort, crop the image to the ROI and then resize it
+        return cv.resize(
+            cv.undistort(img, self.matrix, self.distortion, None, newMatrix)[y:h + y // 4, x:w - x // 4],
+            (1280, 720)
+        )
 
-    @staticmethod
-    def birdsEyeView(img):
+    def birdsEyeView(self, img):
         """
         This method transform an image into the birds-eye view.
 
@@ -108,24 +110,29 @@ class Camera:
             img: An image in birds eye view
         """
 
-        # Grab the previous resolution
-        if len(img.shape) > 2:
-            height, width, _ = img.shape
-        else:
-            height, width = img.shape
+        shape = img.shape
 
-        # Resize the rectangles to fit the image size
-        img = cv.resize(img, (1280, 720))
+        # Grab the previous resolution
+        if len(shape) > 2:
+            height, width, _ = shape
+        else:
+            height, width = shape
 
         # Create the rectangles (copied from the script)
         # TODO: Adjust to camera distortion
         src_rect = np.float32([
-            [278, 668], [1026, 668],
-            [598, 448], [684, 448]
+            [.55 * width, 0.63 * height],  # Top right
+            [width, height - 1],  # Bottom right
+            [0, height - 1],  # Bottom left
+            [.45 * width, 0.63 * height]  # Top left
         ])
+
+        padding = 100
         dst_rect = np.float32([
-            [300, 720], [980, 720],
-            [300, 0], [980, 0]
+            [width - padding, 0],  # Top right
+            [width - padding, height],  # Bottom right
+            [padding, height],  # bottom left
+            [padding, 0]  # Top left
         ])
 
         # Create the transformation matrix

@@ -3,6 +3,8 @@ import os
 import cv2 as cv
 import numpy as np
 
+from config import *
+
 
 class Camera:
     def __init__(self):
@@ -96,10 +98,11 @@ class Camera:
         # Undistort, crop the image to the ROI and then resize it
         return cv.resize(
             cv.undistort(img, self.matrix, self.distortion, None, newMatrix)[y:h + y // 4, x:w - x // 4],
-            (1280, 720)
+            imageSize
         )
 
-    def birdsEyeView(self, img):
+    @staticmethod
+    def birdsEyeView(img):
         """
         This method transform an image into the birds-eye view.
 
@@ -110,32 +113,13 @@ class Camera:
             img: An image in birds eye view
         """
 
-        shape = img.shape
-
-        # Grab the previous resolution
-        if len(shape) > 2:
-            height, width, _ = shape
-        else:
-            height, width = shape
-
         # Create the rectangles (copied from the script)
         # TODO: Adjust to camera distortion
-        src_rect = np.float32([
-            [.55 * width, 0.63 * height],  # Top right
-            [width, height - 1],  # Bottom right
-            [0, height - 1],  # Bottom left
-            [.45 * width, 0.63 * height]  # Top left
-        ])
+        src_rect = np.float32(roi)
 
-        padding = 100
-        dst_rect = np.float32([
-            [width - padding, 0],  # Top right
-            [width - padding, height],  # Bottom right
-            [padding, height],  # bottom left
-            [padding, 0]  # Top left
-        ])
+        dst_rect = np.float32(warpedROI)
 
         # Create the transformation matrix
         matrix = cv.getPerspectiveTransform(src_rect, dst_rect)
 
-        return cv.resize(cv.warpPerspective(img, matrix, (1280, 720)), (width, height))
+        return cv.warpPerspective(img, matrix, imageSize)

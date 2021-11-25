@@ -1,11 +1,17 @@
 import cv2 as cv
 import numpy as np
 from typing import List, Tuple
+from config import *
 
 
 class Detector:
     def __init__(self):
-        self._currentLines = []
+        self.polyPoints = {
+            roi[0][0]: [0, maximumLifetime],
+            roi[1][0]: [0, maximumLifetime],
+            roi[2][0]: [0, maximumLifetime],
+            roi[3][0]: [0, maximumLifetime]
+        }
 
     # ---------- [Lane Detection] ---------- #
 
@@ -21,15 +27,16 @@ class Detector:
             np.ndarray: The image with lines drawn onto it
         """
 
-        # First, segment the image
-        if segment:
-            img = self._segmentImage(img)
-
         # Use filtering (by shape and color)
         lineShapes = self._filterLineShape(img)
         color = self._filterColor(img)
 
-        combined = cv.addWeighted(lineShapes, 0.5, color, 1, 0)
+        # First, segment the image
+        if segment:
+            lineShapes = self._segmentImage(lineShapes)
+            color = self._segmentImage(color)
+
+        combined = cv.addWeighted(lineShapes, 1, color, 1, 0)
         houghImg = combined.copy()
         combined = cv.cvtColor(combined, cv.COLOR_GRAY2RGB)
 
@@ -71,7 +78,7 @@ class Detector:
         #                 prevX = startX
 
         # Performance variant
-        lines = cv.HoughLinesP(houghImg, 1, np.pi / 180, 150)
+        lines = cv.HoughLinesP(houghImg, 1, np.pi / 180, 50, maxLineGap=50)
 
         # This is a list containing a dict for the left and right lane mapping x to y values
         lanes = [{}, {}]
@@ -85,8 +92,7 @@ class Detector:
                 x1, y1 = (line[0], line[1])
                 x2, y2 = (line[2], line[3])
 
-                startX = min(x1, x2)
-                if abs(y1 - y2) > 50 and y1 > img.shape[0] - 250 and 100 < startX < img.shape[1] - 100:
+                if abs(y1 - y2) > 25:
                     # Calculate the angle of the line to the image
                     lineAngle = cv.fastAtan2(y2 - y1, x2 - x1)
 
@@ -99,42 +105,58 @@ class Detector:
                         x2: y2
                     })
 
-                    #
-                    # # Draw line only if the startX doesnt intersect with any lines (+ thresh)
-                    # if not any([lineX1 - 100 < startX < lineX2 + 100 for (lineX1, _), (lineX2, _) in validLines]):
-                    #     validLines.append(((startX, max(y1, y2)), (max(x1, x2), min(y1, y2))))
+            # Prepare the dictionary containing the 4 points needed for the polygon
+            polyPoints = {
+                roi[0][0]: roi[0][1],
+                roi[1][0]: roi[1][1],
+                roi[2][0]: roi[2][1],
+                roi[3][0]: roi[3][1]
+            }
 
-            for lane in lanes:
+            for index, lane in enumerate(lanes):
                 if len(lane) > 0:
-                    points_x = list(lane.keys())
-                    range_x = np.arange(min(points_x), max(points_x))
-
+                    # TODO: maybe train on y data
                     # Estimate the polynomial function
-                    fittedPoly = np.polyfit(points_x, list(lane.values()), 2)
+                    fittedPoly = np.polyfit(list(lane.keys()), list(lane.values()), 2)
                     estimator = np.poly1d(fittedPoly)
-                    est_y = estimator(range_x)
 
-                    # Use np.column_stack to combine the lists
+                    # Values range from the bottom left/right to the top left/right corner respectively
+                    bottom = roi[index * 2][0]
+                    top = roi[index * 2 + 1][0]
+
+                    polyPoints.update({
+                        bottom: estimator(bottom),
+                        top: estimator(top)
+                    })
+
+                    range_x = np.arange(bottom, top)
                     cv.polylines(
                         combined,
-                        [np.int32(np.asarray([range_x, est_y]).T)],
+                        [np.int32(np.asarray([range_x, estimator(range_x)]).T)],
                         False,
-                        color=(0, 0, 255),
+                        color=(0, 255, 255),
                         thickness=5
                     )
 
-            # self._currentLines = validLines
-            # # TODO: compare with previous lines and change if the difference is large enough
-            # if len(validLines) == 1:
-            #     x1, x2, y1, y2 = validLines[0]
-            #     for index, (prevX1, prevX2, prevY1, prevY2) in enumerate(self._currentLines):
-            #         if abs(x1 - prevX1) > 50 or abs(x2 - prevX2) > 50:
-            #             self._currentLines[index] = (x1, x2, y1, y2)
+            for key, value in polyPoints.items():
+                if abs(value - self.polyPoints.get(key)[0]) < lineTolerance or \
+                        self.polyPoints.get(key)[1] >= maximumLifetime:
+                    # print(f"Changed point from {self.polyPoints[index]} to {point}.")
+                    # TODO: Catch -1 values
+                    self.polyPoints.update({
+                        key: [value, 0]
+                    })
+                else:
+                    self.polyPoints.get(key)[1] += 1
 
-        # for line in self._currentLines:
-        #     cv.line(combined, (line[0], line[1]), (line[2], line[3]), (0, 0, 255), 5)
+            lanes = combined.copy()
+            cv.fillPoly(
+                lanes,
+                np.array([[[key, value] for key, (value, _) in self.polyPoints.items()]], dtype=np.int32),
+                (0, 0, 255)
+            )
 
-        return combined
+        return cv.addWeighted(img, 1, lanes, 0.5, 1)
 
     @staticmethod
     def _segmentImage(img):
@@ -148,20 +170,16 @@ class Detector:
             np.ndarray: An image only containing the pixels of the ROI
         """
 
-        shape = img.shape
-        polyPoints = np.array(
-            [[(.55 * shape[1], 0.6 * shape[0]), (shape[1], shape[0]), (0, shape[0]), (.45 * shape[1], 0.6 * shape[0])]],
-            dtype=np.int32
-        )
-
         mask = np.zeros_like(img, dtype=np.uint8)
+
+        shape = img.shape
         if len(shape) > 2:
             channel_count = shape[2]
             ignore_mask_color = (255,) * channel_count
         else:
             ignore_mask_color = 255
 
-        cv.fillPoly(mask, polyPoints, ignore_mask_color)
+        cv.fillPoly(mask, np.array([roi], dtype=np.int32), ignore_mask_color)
         return cv.bitwise_and(img, mask)
 
     @staticmethod
@@ -198,7 +216,7 @@ class Detector:
         min_yellow = np.array([20, 100, 100], dtype="uint8")
         max_yellow = np.array([100, 255, 255], dtype="uint8")
 
-        sensitivity = 15
+        sensitivity = 25
         min_white = np.array([0, 0, 255 - sensitivity], dtype="uint8")
         max_white = np.array([255, sensitivity, 255], dtype="uint8")
 

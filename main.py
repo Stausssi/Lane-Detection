@@ -44,10 +44,10 @@ def main():
                     frame = detector.detectObjects(frame)
 
                 # Show the video feeds
-                cv.imshow("Video Playback", frame)
+                cv.imshow("Video Playback", lines)
                 cv.imshow("Birds-Eye", birdsEye)
-                cv.imshow("Lines", lines)
-                cv.imshow("Lines Birds-Eye", detector.detectLines(birdsEye, False))
+                # cv.imshow("Lines", lines)
+                # cv.imshow("Lines Birds-Eye", detector.detectLines(birdsEye, False))
 
                 # Check if escape key or 'q' was pressed
                 key = cv.waitKey(10)

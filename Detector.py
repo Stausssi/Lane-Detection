@@ -7,10 +7,10 @@ from config import *
 class Detector:
     def __init__(self):
         self.polyPoints = {
-            roi[0][0]: [0, maximumLifetime],
-            roi[1][0]: [0, maximumLifetime],
-            roi[2][0]: [0, maximumLifetime],
-            roi[3][0]: [0, maximumLifetime]
+            roi[0][0]: [roi[0][1], maximumLifetime],
+            roi[1][0]: [roi[1][1], maximumLifetime],
+            roi[2][0]: [roi[2][1], maximumLifetime],
+            roi[3][0]: [roi[3][1], maximumLifetime]
         }
 
     # ---------- [Lane Detection] ---------- #
@@ -27,6 +27,7 @@ class Detector:
             np.ndarray: The image with lines drawn onto it
         """
 
+        # TODO: Idea: segment, then filter by color, then canny -> No other lines distracting the detection
         # Use filtering (by shape and color)
         lineShapes = self._filterLineShape(img)
         color = self._filterColor(img)
@@ -39,44 +40,6 @@ class Detector:
         combined = cv.addWeighted(lineShapes, 1, color, 1, 0)
         houghImg = combined.copy()
         combined = cv.cvtColor(combined, cv.COLOR_GRAY2RGB)
-
-        # Regular Hough
-        # lines = cv.HoughLines(houghImg, 1, np.pi/180, 150)
-        # for line in lines:
-        #     for r, theta in line:
-        #         # Stores the value of cos(theta) in a
-        #         a = np.cos(theta)
-        #
-        #         # Stores the value of sin(theta) in b
-        #         b = np.sin(theta)
-        #
-        #         # x0 stores the value rcos(theta)
-        #         x0 = a * r
-        #
-        #         # y0 stores the value rsin(theta)
-        #         y0 = b * r
-        #
-        #         # x1 stores the rounded off value of (rcos(theta)-1000sin(theta))
-        #         x1 = int(x0 + 100 * (-b))
-        #
-        #         # y1 stores the rounded off value of (rsin(theta)+1000cos(theta))
-        #         y1 = int(y0 + 100 * a)
-        #
-        #         # x2 stores the rounded off value of (rcos(theta)+1000sin(theta))
-        #         x2 = int(x0 - 100 * (-b))
-        #
-        #         # y2 stores the rounded off value of (rsin(theta)-1000cos(theta))
-        #         y2 = int(y0 - 100 * a)
-        #
-        #         # cv2.line draws a line in img from the point(x1,y1) to (x2,y2).
-        #         # (0,0,255) denotes the colour of the line to be
-        #         # drawn. In this case, it is red.
-        #         startX = min(x1, x2)
-        #         cv.line(combined, (x1, y1), (x2, y2), (0, 0, 255), 5)
-        #         if startX > 100:
-        #             if prevX == 0 or abs(prevX - startX) > 500:
-        #                 prevX = startX
-
         # Performance variant
         lines = cv.HoughLinesP(houghImg, 1, np.pi / 180, 50, maxLineGap=50)
 
@@ -107,17 +70,17 @@ class Detector:
 
             # Prepare the dictionary containing the 4 points needed for the polygon
             polyPoints = {
-                roi[0][0]: roi[0][1],
-                roi[1][0]: roi[1][1],
-                roi[2][0]: roi[2][1],
-                roi[3][0]: roi[3][1]
+                roi[0][0]: -1,
+                roi[1][0]: -1,
+                roi[2][0]: -1,
+                roi[3][0]: -1
             }
 
             for index, lane in enumerate(lanes):
                 if len(lane) > 0:
                     # TODO: maybe train on y data
                     # Estimate the polynomial function
-                    fittedPoly = np.polyfit(list(lane.keys()), list(lane.values()), 2)
+                    fittedPoly = np.polyfit(list(lane.keys()), list(lane.values()), 1)
                     estimator = np.poly1d(fittedPoly)
 
                     # Values range from the bottom left/right to the top left/right corner respectively
@@ -139,12 +102,11 @@ class Detector:
                     )
 
             for key, value in polyPoints.items():
-                if abs(value - self.polyPoints.get(key)[0]) < lineTolerance or \
-                        self.polyPoints.get(key)[1] >= maximumLifetime:
+                oldValue = self.polyPoints.get(key)[0]
+                if abs(value - oldValue) < lineTolerance or self.polyPoints.get(key)[1] >= maximumLifetime:
                     # print(f"Changed point from {self.polyPoints[index]} to {point}.")
-                    # TODO: Catch -1 values
                     self.polyPoints.update({
-                        key: [value, 0]
+                        key: [(value + oldValue) // 2, 0]
                     })
                 else:
                     self.polyPoints.get(key)[1] += 1

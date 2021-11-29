@@ -20,5 +20,5 @@ warpedROI = [
     [padding, 0],  # Top left
 ]
 
-lineTolerance = 15
-maximumLifetime = 10
+lineTolerance = 25
+maximumLifetime = 20

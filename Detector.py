@@ -1,27 +1,33 @@
 import cv2 as cv
 import numpy as np
-from typing import List, Tuple
+from typing import List, Dict
 from config import *
+from util import LinePoint
 
 
 class Detector:
     def __init__(self):
-        self.polyPoints = {
-            roi[0][0]: [roi[0][1], maximumLifetime],
-            roi[1][0]: [roi[1][1], maximumLifetime],
-            roi[2][0]: [roi[2][1], maximumLifetime],
-            roi[3][0]: [roi[3][1], maximumLifetime]
-        }
+        self.currentLinePoints = [
+            # Right line
+            {
+                roi[0][0]: LinePoint(roi[0][1]),
+                roi[1][0]: LinePoint(roi[1][1])
+            },
+            # Left line
+            {
+                roi[2][0]: LinePoint(roi[2][1]),
+                roi[3][0]: LinePoint(roi[3][1])
+            }
+        ]
 
     # ---------- [Lane Detection] ---------- #
 
-    def detectLines(self, img, segment=True):
+    def detectLines(self, img):
         """
         This method detects the lines in the given image. This task is split into subtasks.
 
         Args:
             img (np.ndarray): The image to detect lines on
-            segment (bool): Whether the picture should be segmented
 
         Returns:
             np.ndarray: The image with lines drawn onto it
@@ -33,98 +39,101 @@ class Detector:
         # Then filter by color
         color = self._filterColor(segmented)
 
-        # Connect artefacts together -> strengthen the line
-        color = cv.morphologyEx(color, cv.MORPH_CLOSE, cv.getStructuringElement(cv.MORPH_CROSS, (5, 5)), iterations=1)
-        # Remove singular artifacts
-        color = cv.morphologyEx(color, cv.MORPH_OPEN, cv.getStructuringElement(cv.MORPH_CROSS, (5, 5)), iterations=1)
-
         # Filter by shapes (Canny)
-        lineShapes = self._filterLineShape(color)
+        lineShapes = self._segmentImage(self._filterLineShape(img))
 
         # Combine the pictures
         combined = cv.addWeighted(lineShapes, 1, color, 1, 0)
-        houghImg = combined.copy()
-        combined = cv.cvtColor(combined, cv.COLOR_GRAY2RGB)
 
         # Performance variant
-        lines = cv.HoughLinesP(houghImg, 1, np.pi / 180, 50, maxLineGap=50)
-
-        # This is a list containing a dict for the left and right lane mapping x to y values
-        lanes = [{}, {}]
+        lines = cv.HoughLinesP(combined, 1, np.pi / 180, 150, maxLineGap=25)
 
         if lines is not None:
-            # validLines: List[Tuple[Tuple[int, int], Tuple[int, int]]] = []
-
             # Go over every hough line
             for line in lines:
                 line = line[0]
                 x1, y1 = (line[0], line[1])
                 x2, y2 = (line[2], line[3])
 
-                if abs(y1 - y2) > 25:
+                if abs(y1 - y2) > 50:
                     # Calculate the angle of the line to the image
                     lineAngle = cv.fastAtan2(y2 - y1, x2 - x1)
 
-                    # Select the dictionary depending on the angle
-                    lanes[int(lineAngle > 270)].update({
-                        x1: y1
-                    })
+                    isLeftLine = int(lineAngle > 270)
 
-                    lanes[int(lineAngle > 270)].update({
-                        x2: y2
-                    })
+                    # Compare current point to existing point, if exists
+                    for i in range(2):
+                        x = line[i * 2]
+                        newY = line[i * 2 + 1]
+                        currentPoint = self.currentLinePoints[isLeftLine].get(i * 2 + 1)
 
-            # Prepare the dictionary containing the 4 points needed for the polygon
-            polyPoints = {
-                roi[0][0]: roi[0][1],
-                roi[1][0]: roi[1][1],
-                roi[2][0]: roi[2][1],
-                roi[3][0]: roi[3][1]
-            }
+                        saveNewValue = currentPoint is None
 
-            for index, lane in enumerate(lanes):
-                if len(lane) > 0:
-                    # TODO: maybe train on y data
-                    # Estimate the polynomial function
-                    fittedPoly = np.polyfit(list(lane.keys()), list(lane.values()), 1)
-                    estimator = np.poly1d(fittedPoly)
+                        if currentPoint is not None:
+                            currentY = currentPoint.getY()
 
-                    # Values range from the bottom left/right to the top left/right corner respectively
-                    bottom = roi[index * 2][0]
-                    top = roi[index * 2 + 1][0]
+                            saveNewValue = abs(newY - currentY) < lineTolerance or currentPoint.getLifetime() >= maximumLifetime
 
-                    polyPoints.update({
-                        bottom: estimator(bottom),
-                        top: estimator(top)
-                    })
+                        if saveNewValue:
+                            self.currentLinePoints[isLeftLine].update({
+                                x: LinePoint(newY)
+                            })
 
-                    range_x = np.arange(bottom, top)
-                    cv.polylines(
-                        combined,
-                        [np.int32(np.asarray([range_x, estimator(range_x)]).T)],
-                        False,
-                        color=(0, 255, 255),
-                        thickness=5
-                    )
+        invalidPoints = []
+        for index, line in enumerate(self.currentLinePoints):
+            polyPoints = []
+            for x, linePoint in line.items():
+                linePoint.increaseLifetime()
 
-            for key, value in polyPoints.items():
-                oldValue = self.polyPoints.get(key)[0]
-                if abs(value - oldValue) < lineTolerance or self.polyPoints.get(key)[1] >= maximumLifetime:
-                    # print(f"Changed point from {self.polyPoints[index]} to {point}.")
-                    self.polyPoints.update({
-                        key: [(value + oldValue) // 2, 0]
-                    })
+                if linePoint.getLifetime() >= maximumLifetime:
+                    invalidPoints.append(x)
                 else:
-                    self.polyPoints.get(key)[1] += 1
+                    polyPoints.append([x, linePoint.getY()])
 
-            lanes = combined.copy()
+            if len(polyPoints) > 5:
+                # TODO: maybe train on y data
+                # Estimate the polynomial function
+                fittedPoly = np.polyfit(
+                    [x for (x, _) in polyPoints],
+                    [y for (_, y) in polyPoints],
+                    2
+                )
+                estimator = np.poly1d(fittedPoly)
+
+                # Values range from the bottom left/right to the top left/right corner respectively
+                bottom = roi[index * 2][0]
+                top = roi[index * 2 + 1][0]
+
+                range_x = np.arange(bottom, top)
+                cv.polylines(
+                    img,
+                    [np.int32(np.asarray([range_x, estimator(range_x)]).T)],
+                    False,
+                    color=(0, 255, 255),
+                    thickness=5
+                )
+
+        for invalidX in invalidPoints:
+            for i in range(2):
+                try:
+                    self.currentLinePoints[i].pop(invalidX)
+                except KeyError as e:
+                    pass
+
+        lane_img = img.copy()
+
+        if len(self.currentLinePoints[0]) > 0 and len(self.currentLinePoints[1]) > 0:
+            # TODO: Fix buggy drawing -> sort ?
             cv.fillPoly(
-                lanes,
-                np.array([[[key, value] for key, (value, _) in self.polyPoints.items()]], dtype=np.int32),
+                lane_img,
+                np.array([
+                    [[x, y.getY()] for x, y in self.currentLinePoints[0].items()] +
+                    [[x, y.getY()] for x, y in self.currentLinePoints[1].items()]
+                ], dtype=np.int32),
                 (0, 0, 255)
             )
 
-        return cv.addWeighted(img, 1, lanes, 0.5, 1)
+        return cv.addWeighted(img, 1, lane_img, 0.5, 1)
 
     @staticmethod
     def _segmentImage(img):
@@ -183,17 +192,21 @@ class Detector:
         min_yellow = np.array([20, 100, 100], dtype="uint8")
         max_yellow = np.array([100, 255, 255], dtype="uint8")
 
-        sensitivity = 50
+        sensitivity = 25
         min_white = np.array([0, 0, 255 - sensitivity], dtype="uint8")
         max_white = np.array([255, sensitivity, 255], dtype="uint8")
 
         mask_yellow = cv.inRange(img_hsv, min_yellow, max_yellow)
         mask_white = cv.inRange(img_hsv, min_white, max_white)
 
-        mask_wy = cv.bitwise_or(mask_white, mask_yellow)
+        combined = cv.bitwise_or(mask_white, mask_yellow)
 
-        # Use closing to close holes
-        return mask_wy
+        # Connect artefacts together -> strengthen the line
+        combined = cv.morphologyEx(combined, cv.MORPH_CLOSE, cv.getStructuringElement(cv.MORPH_CROSS, (5, 5)), iterations=1)
+        # Remove singular artifacts
+        combined = cv.morphologyEx(combined, cv.MORPH_OPEN, cv.getStructuringElement(cv.MORPH_CROSS, (5, 5)), iterations=1)
+
+        return combined
 
     # ---------- [Object Detection] ---------- #
 

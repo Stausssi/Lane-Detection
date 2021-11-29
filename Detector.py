@@ -27,19 +27,25 @@ class Detector:
             np.ndarray: The image with lines drawn onto it
         """
 
-        # TODO: Idea: segment, then filter by color, then canny -> No other lines distracting the detection
-        # Use filtering (by shape and color)
-        lineShapes = self._filterLineShape(img)
-        color = self._filterColor(img)
-
         # First, segment the image
-        if segment:
-            lineShapes = self._segmentImage(lineShapes)
-            color = self._segmentImage(color)
+        segmented = self._segmentImage(img)
 
+        # Then filter by color
+        color = self._filterColor(segmented)
+
+        # Connect artefacts together -> strengthen the line
+        color = cv.morphologyEx(color, cv.MORPH_CLOSE, cv.getStructuringElement(cv.MORPH_CROSS, (5, 5)), iterations=1)
+        # Remove singular artifacts
+        color = cv.morphologyEx(color, cv.MORPH_OPEN, cv.getStructuringElement(cv.MORPH_CROSS, (5, 5)), iterations=1)
+
+        # Filter by shapes (Canny)
+        lineShapes = self._filterLineShape(color)
+
+        # Combine the pictures
         combined = cv.addWeighted(lineShapes, 1, color, 1, 0)
         houghImg = combined.copy()
         combined = cv.cvtColor(combined, cv.COLOR_GRAY2RGB)
+
         # Performance variant
         lines = cv.HoughLinesP(houghImg, 1, np.pi / 180, 50, maxLineGap=50)
 
@@ -156,10 +162,9 @@ class Detector:
             np.ndarray: The filtered image
         """
 
-        gray_image = cv.cvtColor(img, cv.COLOR_RGB2GRAY)
-        blur = cv.GaussianBlur(gray_image, (5, 5), 0)
-        canny = cv.Canny(blur, 50, 150)
-        return canny
+        # gray_image = cv.cvtColor(img, cv.COLOR_RGB2GRAY)
+        blur = cv.GaussianBlur(img, (5, 5), 0)
+        return cv.Canny(blur, 50, 150)
 
     @staticmethod
     def _filterColor(img):
@@ -178,7 +183,7 @@ class Detector:
         min_yellow = np.array([20, 100, 100], dtype="uint8")
         max_yellow = np.array([100, 255, 255], dtype="uint8")
 
-        sensitivity = 25
+        sensitivity = 50
         min_white = np.array([0, 0, 255 - sensitivity], dtype="uint8")
         max_white = np.array([255, sensitivity, 255], dtype="uint8")
 
@@ -188,7 +193,6 @@ class Detector:
         mask_wy = cv.bitwise_or(mask_white, mask_yellow)
 
         # Use closing to close holes
-        # return cv.morphologyEx(mask_wy, cv.MORPH_CLOSE, cv.getStructuringElement(cv.MORPH_CROSS, (5, 5)), iterations=5)
         return mask_wy
 
     # ---------- [Object Detection] ---------- #

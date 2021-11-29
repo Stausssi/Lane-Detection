@@ -70,10 +70,10 @@ class Detector:
 
             # Prepare the dictionary containing the 4 points needed for the polygon
             polyPoints = {
-                roi[0][0]: -1,
-                roi[1][0]: -1,
-                roi[2][0]: -1,
-                roi[3][0]: -1
+                roi[0][0]: roi[0][1],
+                roi[1][0]: roi[1][1],
+                roi[2][0]: roi[2][1],
+                roi[3][0]: roi[3][1]
             }
 
             for index, lane in enumerate(lanes):

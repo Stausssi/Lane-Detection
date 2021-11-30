@@ -1,28 +1,33 @@
 # All videos are 1280x720, so just hardcode this size
 import numpy as np
 
-imageSize = (1280, 720)
-width, height = imageSize
+IMAGE_SIZE = (1280, 720)
+WIDTH, HEIGHT = IMAGE_SIZE
+
+# Debugging
+DRAW_HOUGH = True
 
 # The ROI of the lane detection and camera warp
-carHoodHeight = 60
-padding = 150
-roi = [
-    [.55 * width, 0.63 * height],  # Top right
-    [width - padding, height - carHoodHeight],  # Bottom right
-    [padding, height - carHoodHeight],  # Bottom left
-    [.45 * width, 0.63 * height],  # Top left
+CAR_HOOD_HEIGHT = 60
+PADDING = 150
+ROI = [
+    [.55 * WIDTH, 0.63 * HEIGHT],  # Top right
+    [WIDTH - PADDING, HEIGHT - CAR_HOOD_HEIGHT],  # Bottom right
+    [PADDING, HEIGHT - CAR_HOOD_HEIGHT],  # Bottom left
+    [.45 * WIDTH, 0.63 * HEIGHT],  # Top left
 ]
 
 # The destination ROI of the birds eye view
-warpedROI = [
-    [width - padding, 0],  # Top right
-    [width - padding, height],  # Bottom right
-    [padding, height],  # bottom left
-    [padding, 0],  # Top left
+WARPED_ROI = [
+    [WIDTH - PADDING, 0],  # Top right
+    [WIDTH - PADDING, HEIGHT],  # Bottom right
+    [PADDING, HEIGHT],  # bottom left
+    [PADDING, 0],  # Top left
 ]
 
-lineTolerance = 15
-maximumLifetime = 15
+LINE_TOLERANCE = 75
+MAX_LIFETIME = 20
 
-range_y = np.arange(roi[0][1], height)
+Y_RANGE = np.arange(ROI[0][1], HEIGHT)
+
+LANE_COLOR = (0, 128, 0)

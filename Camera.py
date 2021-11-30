@@ -98,7 +98,7 @@ class Camera:
         # Undistort, crop the image to the ROI and then resize it
         return cv.resize(
             cv.undistort(img, self.matrix, self.distortion, None, newMatrix)[y:h + y // 4, x:w - x // 4],
-            imageSize
+            IMAGE_SIZE
         )
 
     @staticmethod
@@ -115,11 +115,11 @@ class Camera:
 
         # Create the rectangles (copied from the script)
         # TODO: Adjust to camera distortion
-        src_rect = np.float32(roi)
+        src_rect = np.float32(ROI)
 
-        dst_rect = np.float32(warpedROI)
+        dst_rect = np.float32(WARPED_ROI)
 
         # Create the transformation matrix
         matrix = cv.getPerspectiveTransform(src_rect, dst_rect)
 
-        return cv.warpPerspective(img, matrix, imageSize)
+        return cv.warpPerspective(img, matrix, IMAGE_SIZE)

@@ -9,16 +9,17 @@ class Detector:
     def __init__(self):
         # This is a list, which contains a dict for each line (right/left)
         # The dict itself contains points for the x and y coordinates of the points
-        self.currentLinePoints = [
+        # Default values are the ROI edges
+        self.currentLinePoints: List[Dict[int, LinePoint]] = [
             # Right line
             {
-                int(roi[0][1]): LinePoint(roi[0][0]),
-                int(roi[1][1]): LinePoint(roi[1][0])
+                int(ROI[0][1]): LinePoint(ROI[0][0]),
+                int(ROI[1][1]): LinePoint(ROI[1][0])
             },
             # Left line
             {
-                int(roi[2][1]): LinePoint(roi[2][0]),
-                int(roi[3][1]): LinePoint(roi[3][0])
+                int(ROI[2][1]): LinePoint(ROI[2][0]),
+                int(ROI[3][1]): LinePoint(ROI[3][0])
             }
         ]
 
@@ -26,7 +27,7 @@ class Detector:
 
     def detectLines(self, img):
         """
-        This method detects the lines in the given image. This task is split into subtasks.
+        Detects the lines in the given image. This task is split into subtasks.
 
         Args:
             img (np.ndarray): The image to detect lines on
@@ -45,105 +46,15 @@ class Detector:
         lineShapes = self._segmentImage(self._filterLineShape(img))
 
         # Combine the pictures
-        combined = cv.addWeighted(lineShapes, 1, color, 1, 0)
+        combined = cv.bitwise_or(color, lineShapes)
 
-        # Performance variant
-        lines = cv.HoughLinesP(combined, 1, np.pi / 180, 150, maxLineGap=25)
-
-        if lines is not None:
-            # Go over every hough line
-            for line in lines:
-                line = line[0]
-                x1, y1 = (line[0], line[1])
-                x2, y2 = (line[2], line[3])
-
-                if abs(y1 - y2) > 50:
-                    # Calculate the angle of the line to the image
-                    lineAngle = cv.fastAtan2(y2 - y1, x2 - x1)
-
-                    isLeftLine = int(lineAngle > 270)
-
-                    # Compare current point to existing point, if exists
-                    for i in range(2):
-                        y = int(line[i * 2 + 1])
-                        newX = int(line[i * 2])
-                        currentPoint = self.currentLinePoints[isLeftLine].get(i * 2 + 1)
-
-                        saveNewValue = currentPoint is None
-
-                        if currentPoint is not None:
-                            currentX = currentPoint.getX()
-
-                            saveNewValue = abs(newX - currentX) < lineTolerance or currentPoint.getLifetime() >= maximumLifetime
-
-                        if saveNewValue:
-                            self.currentLinePoints[isLeftLine].update({
-                                y: LinePoint(newX)
-                            })
-
-        invalidPoints = []
-        polyLines = []
-        for index, line in enumerate(self.currentLinePoints):
-            polyPoints = []
-            for y, linePoint in line.items():
-                linePoint.increaseLifetime()
-
-                if linePoint.getLifetime() >= maximumLifetime:
-                    invalidPoints.append(y)
-                else:
-                    polyPoints.append([y, linePoint.getX()])
-
-            if len(polyPoints) > 0:
-                # Estimate the polynomial function
-                fittedPoly = np.polyfit(
-                    [y for (y, _) in polyPoints],
-                    [x for (_, x) in polyPoints],
-                    2
-                )
-                estimator = np.poly1d(fittedPoly)
-
-                # Get all points
-                polyLine = np.int32([
-                    estimator(range_y), range_y
-                ]).T
-
-                if index == 0:
-                    polyLines.extend(polyLine)
-                else:
-                    # Flip to ensure, that the filled poly is solid and not crossed
-                    polyLines.extend(np.flipud(polyLine))
-
-                cv.polylines(
-                    img,
-                    [polyLine],
-                    False,
-                    color=(0, 255, 255),
-                    thickness=5
-                )
-
-        for invalidX in invalidPoints:
-            for i in range(2):
-                try:
-                    self.currentLinePoints[i].pop(invalidX)
-                except KeyError as e:
-                    pass
-
-        lane_img = img.copy()
-
-        if len(self.currentLinePoints[0]) > 0 and len(self.currentLinePoints[1]) > 0:
-            # TODO: Fix buggy drawing -> sort ?
-            cv.fillPoly(
-                lane_img,
-                np.array([polyLines], dtype=np.int32),
-                (0, 0, 255)
-            )
-
-        return cv.addWeighted(img, 1, lane_img, 0.5, 1)
+        # Perform Hough Line detection and return the overlay the method creates
+        return self._houghDetection(combined)
 
     @staticmethod
     def _segmentImage(img):
         """
-        This method segments the image by extracting the ROI for lane detection.
+        Segments the image by extracting the ROI for lane detection.
 
         Args:
             img (np.ndarray): The image to extract the ROI of
@@ -161,13 +72,13 @@ class Detector:
         else:
             ignore_mask_color = 255
 
-        cv.fillPoly(mask, np.array([roi], dtype=np.int32), ignore_mask_color)
+        cv.fillPoly(mask, np.array([ROI], dtype=np.int32), ignore_mask_color)
         return cv.bitwise_and(img, mask)
 
     @staticmethod
     def _filterLineShape(img):
         """
-        This method uses canny to filter edges out of the image.
+        Uses canny to filter edges out of the image.
 
         Args:
             img (np.ndarray): The image to filter the edges of
@@ -183,7 +94,7 @@ class Detector:
     @staticmethod
     def _filterColor(img):
         """
-        This method filters yellow and white out of the given image.
+        Filters yellow and white out of the given image.
 
         Args:
             img (np.ndarray): The image to filter the color of
@@ -207,17 +118,155 @@ class Detector:
         combined = cv.bitwise_or(mask_white, mask_yellow)
 
         # Connect artefacts together -> strengthen the line
-        combined = cv.morphologyEx(combined, cv.MORPH_CLOSE, cv.getStructuringElement(cv.MORPH_CROSS, (5, 5)), iterations=2)
+        combined = cv.morphologyEx(combined, cv.MORPH_CLOSE, cv.getStructuringElement(cv.MORPH_CROSS, (5, 5)),
+                                   iterations=2)
         # Remove singular artifacts
-        combined = cv.morphologyEx(combined, cv.MORPH_OPEN, cv.getStructuringElement(cv.MORPH_CROSS, (5, 5)), iterations=1)
+        combined = cv.morphologyEx(combined, cv.MORPH_OPEN, cv.getStructuringElement(cv.MORPH_CROSS, (5, 5)),
+                                   iterations=1)
 
         return combined
+
+    def _houghDetection(self, img):
+        """
+        Performs Hough Line detection on the given image and returns a line overlay which can be added onto the final
+        image.
+
+        Args:
+            img (np.ndarray): The prefiltered, segmented and grayscaled image.
+
+        Returns:
+            np.ndarray: The lane overlay.
+        """
+
+        # Create the overlay image
+        overlay = np.zeros((HEIGHT, WIDTH, 3), dtype="uint8")
+
+        # Check if less than a fiftieth of the image is white
+        if np.sum(img > 0) < WIDTH * HEIGHT // 50:
+            # Use the performance variant of HoughLines
+            lines = cv.HoughLinesP(img, 1, np.pi / 180, 75, maxLineGap=40)
+
+            if lines is not None:
+                # Go over every detected hough line
+                for line in lines:
+                    line = line[0]
+
+                    # Get the coordinates
+                    x1, y1 = (line[0], line[1])
+                    x2, y2 = (line[2], line[3])
+
+                    # Only vertical lines are allowed
+                    if abs(y1 - y2) > 50:
+                        # Draw detected line, if specified
+                        if DRAW_HOUGH:
+                            cv.line(
+                                overlay,
+                                (x1, y1),
+                                (x2, y2),
+                                (0, 0, 255),
+                                thickness=10
+                            )
+
+                        # Calculate the angle of the line to the image
+                        lineAngle = cv.fastAtan2(y2 - y1, x2 - x1)
+
+                        # Point is from the left line, if the angle is bigger than 270 degrees
+                        isLeftLine = int(lineAngle > 270)
+
+                        # Compare current point to existing point, if exists
+                        # Do this for every line (left and right)
+                        for i in range(2):
+                            y = int(line[i * 2 + 1])
+                            newX = int(line[i * 2])
+
+                            # Get the current point for that y-coordinate
+                            currentPoint = self.currentLinePoints[isLeftLine].get(y)
+
+                            # Save the new value, if there is no current point, or ...
+                            saveNewValue = currentPoint is None
+
+                            if currentPoint is not None:
+                                currentX = currentPoint.getX()
+                                currentLifetime = currentPoint.getLifetime()
+
+                                # ... if the euclidean distance is smaller than the tolerance, or the previous point
+                                # exceeded the lifetime
+                                saveNewValue = abs(newX - currentX) < LINE_TOLERANCE or currentLifetime >= MAX_LIFETIME
+
+                                # newX = (currentX + 2 * newX) // 3
+
+                            if saveNewValue:
+                                self.currentLinePoints[isLeftLine].update({
+                                    y: LinePoint(newX)
+                                })
+
+        # Create lists for storing values
+        invalidPoints = []
+        polyLines = []
+
+        # Go over each line
+        for index, line in enumerate(self.currentLinePoints):
+            polyPoints = []
+
+            # Go over every point in the line
+            for y, linePoint in line.items():
+                linePoint.increaseLifetime()
+
+                if linePoint.getLifetime() >= MAX_LIFETIME:
+                    invalidPoints.append(y)
+                else:
+                    polyPoints.append([y, linePoint.getX()])
+
+            if len(polyPoints) > 0:
+                # Estimate the polynomial function
+                fittedPoly = np.polyfit(
+                    [y for (y, _) in polyPoints],
+                    [x for (_, x) in polyPoints],
+                    2
+                )
+                estimator = np.poly1d(fittedPoly)
+
+                # Get all points
+                polyLine = np.int32([
+                    estimator(Y_RANGE), Y_RANGE
+                ]).T
+
+                if index == 0:
+                    polyLines.extend(polyLine)
+                else:
+                    # Flip to ensure, that the filled poly is solid and not crossed
+                    polyLines.extend(np.flipud(polyLine))
+
+                cv.polylines(
+                    overlay,
+                    [polyLine],
+                    False,
+                    color=LANE_COLOR,
+                    thickness=5
+                )
+
+        for invalidX in invalidPoints:
+            for i in range(2):
+                try:
+                    self.currentLinePoints[i].pop(invalidX)
+                except KeyError as e:
+                    pass
+
+        if len(polyLines) > 0:
+            cv.fillPoly(
+                overlay,
+                np.array([polyLines], dtype=np.int32),
+                LANE_COLOR
+            )
+
+        return overlay
 
     # ---------- [Object Detection] ---------- #
 
     def detectObjects(self, image):
         """
-        This method detects other objects (cars, etc.) in the given image.
+        Detects other objects (cars, etc.) in the given image.
+
         Args:
             image (np.ndarray): The image to analyse and detect objects in
 

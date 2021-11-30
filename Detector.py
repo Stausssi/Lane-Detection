@@ -196,6 +196,7 @@ class Detector:
                                 # newX = (currentX + 2 * newX) // 3
 
                             if saveNewValue:
+                                # Save the value
                                 self.currentLinePoints[isLeftLine].update({
                                     y: LinePoint(newX)
                                 })
@@ -213,8 +214,10 @@ class Detector:
                 linePoint.increaseLifetime()
 
                 if linePoint.getLifetime() >= MAX_LIFETIME:
+                    # Schedule the point for deletion
                     invalidPoints.append(y)
                 else:
+                    # Schedule the point for the poly fit
                     polyPoints.append([y, linePoint.getX()])
 
             if len(polyPoints) > 0:
@@ -226,7 +229,7 @@ class Detector:
                 )
                 estimator = np.poly1d(fittedPoly)
 
-                # Get all points
+                # Get all points via the estimator
                 polyLine = np.int32([
                     estimator(Y_RANGE), Y_RANGE
                 ]).T
@@ -237,6 +240,7 @@ class Detector:
                     # Flip to ensure, that the filled poly is solid and not crossed
                     polyLines.extend(np.flipud(polyLine))
 
+                # Draw the line marking
                 cv.polylines(
                     overlay,
                     [polyLine],
@@ -245,6 +249,7 @@ class Detector:
                     thickness=5
                 )
 
+        # Remove invalid points from the dict
         for invalidX in invalidPoints:
             for i in range(2):
                 try:
@@ -253,6 +258,7 @@ class Detector:
                     pass
 
         if len(polyLines) > 0:
+            # Fill the area between the lines
             cv.fillPoly(
                 overlay,
                 np.array([polyLines], dtype=np.int32),

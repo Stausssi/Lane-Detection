@@ -7,16 +7,18 @@ from util import LinePoint
 
 class Detector:
     def __init__(self):
+        # This is a list, which contains a dict for each line (right/left)
+        # The dict itself contains points for the x and y coordinates of the points
         self.currentLinePoints = [
             # Right line
             {
-                roi[0][0]: LinePoint(roi[0][1]),
-                roi[1][0]: LinePoint(roi[1][1])
+                int(roi[0][1]): LinePoint(roi[0][0]),
+                int(roi[1][1]): LinePoint(roi[1][0])
             },
             # Left line
             {
-                roi[2][0]: LinePoint(roi[2][1]),
-                roi[3][0]: LinePoint(roi[3][1])
+                int(roi[2][1]): LinePoint(roi[2][0]),
+                int(roi[3][1]): LinePoint(roi[3][0])
             }
         ]
 
@@ -63,51 +65,57 @@ class Detector:
 
                     # Compare current point to existing point, if exists
                     for i in range(2):
-                        x = line[i * 2]
-                        newY = line[i * 2 + 1]
+                        y = int(line[i * 2 + 1])
+                        newX = int(line[i * 2])
                         currentPoint = self.currentLinePoints[isLeftLine].get(i * 2 + 1)
 
                         saveNewValue = currentPoint is None
 
                         if currentPoint is not None:
-                            currentY = currentPoint.getY()
+                            currentX = currentPoint.getX()
 
-                            saveNewValue = abs(newY - currentY) < lineTolerance or currentPoint.getLifetime() >= maximumLifetime
+                            saveNewValue = abs(newX - currentX) < lineTolerance or currentPoint.getLifetime() >= maximumLifetime
 
                         if saveNewValue:
                             self.currentLinePoints[isLeftLine].update({
-                                x: LinePoint(newY)
+                                y: LinePoint(newX)
                             })
 
         invalidPoints = []
+        polyLines = []
         for index, line in enumerate(self.currentLinePoints):
             polyPoints = []
-            for x, linePoint in line.items():
+            for y, linePoint in line.items():
                 linePoint.increaseLifetime()
 
                 if linePoint.getLifetime() >= maximumLifetime:
-                    invalidPoints.append(x)
+                    invalidPoints.append(y)
                 else:
-                    polyPoints.append([x, linePoint.getY()])
+                    polyPoints.append([y, linePoint.getX()])
 
-            if len(polyPoints) > 5:
-                # TODO: maybe train on y data
+            if len(polyPoints) > 0:
                 # Estimate the polynomial function
                 fittedPoly = np.polyfit(
-                    [x for (x, _) in polyPoints],
-                    [y for (_, y) in polyPoints],
+                    [y for (y, _) in polyPoints],
+                    [x for (_, x) in polyPoints],
                     2
                 )
                 estimator = np.poly1d(fittedPoly)
 
-                # Values range from the bottom left/right to the top left/right corner respectively
-                bottom = roi[index * 2][0]
-                top = roi[index * 2 + 1][0]
+                # Get all points
+                polyLine = np.int32([
+                    estimator(range_y), range_y
+                ]).T
 
-                range_x = np.arange(bottom, top)
+                if index == 0:
+                    polyLines.extend(polyLine)
+                else:
+                    # Flip to ensure, that the filled poly is solid and not crossed
+                    polyLines.extend(np.flipud(polyLine))
+
                 cv.polylines(
                     img,
-                    [np.int32(np.asarray([range_x, estimator(range_x)]).T)],
+                    [polyLine],
                     False,
                     color=(0, 255, 255),
                     thickness=5
@@ -126,10 +134,7 @@ class Detector:
             # TODO: Fix buggy drawing -> sort ?
             cv.fillPoly(
                 lane_img,
-                np.array([
-                    [[x, y.getY()] for x, y in self.currentLinePoints[0].items()] +
-                    [[x, y.getY()] for x, y in self.currentLinePoints[1].items()]
-                ], dtype=np.int32),
+                np.array([polyLines], dtype=np.int32),
                 (0, 0, 255)
             )
 
@@ -202,7 +207,7 @@ class Detector:
         combined = cv.bitwise_or(mask_white, mask_yellow)
 
         # Connect artefacts together -> strengthen the line
-        combined = cv.morphologyEx(combined, cv.MORPH_CLOSE, cv.getStructuringElement(cv.MORPH_CROSS, (5, 5)), iterations=1)
+        combined = cv.morphologyEx(combined, cv.MORPH_CLOSE, cv.getStructuringElement(cv.MORPH_CROSS, (5, 5)), iterations=2)
         # Remove singular artifacts
         combined = cv.morphologyEx(combined, cv.MORPH_OPEN, cv.getStructuringElement(cv.MORPH_CROSS, (5, 5)), iterations=1)
 

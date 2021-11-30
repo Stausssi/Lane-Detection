@@ -1,6 +1,6 @@
 class LinePoint:
-    def __init__(self, y):
-        self._y = y
+    def __init__(self, x):
+        self._x = x
         self._lifetime = 0
 
     def getLifetime(self):
@@ -9,5 +9,5 @@ class LinePoint:
     def increaseLifetime(self):
         self._lifetime += 1
 
-    def getY(self):
-        return self._y
+    def getX(self):
+        return self._x

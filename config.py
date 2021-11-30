@@ -1,4 +1,6 @@
 # All videos are 1280x720, so just hardcode this size
+import numpy as np
+
 imageSize = (1280, 720)
 width, height = imageSize
 
@@ -20,5 +22,7 @@ warpedROI = [
     [padding, 0],  # Top left
 ]
 
-lineTolerance = 25
-maximumLifetime = 20
+lineTolerance = 15
+maximumLifetime = 15
+
+range_y = np.arange(roi[0][1], height)

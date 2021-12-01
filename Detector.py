@@ -43,7 +43,7 @@ class Detector:
         color = self._filterColor(segmented)
 
         # Filter by shapes (Canny)
-        lineShapes = self._segmentImage(self._filterLineShape(img))
+        lineShapes = self._filterLineShape(segmented)
 
         # Combine the pictures
         combined = cv.bitwise_or(color, lineShapes)
@@ -87,9 +87,19 @@ class Detector:
             np.ndarray: The filtered image
         """
 
-        # gray_image = cv.cvtColor(img, cv.COLOR_RGB2GRAY)
-        blur = cv.GaussianBlur(img, (5, 5), 0)
-        return cv.Canny(blur, 50, 150)
+        # Perform canny
+        canny = cv.Canny(cv.GaussianBlur(img, (5, 5), 0), 50, 150)
+
+        # Draw a black polygon around the ROI to remove edges of the ROI
+        cv.polylines(
+            canny,
+            np.array([ROI], dtype=np.int32),
+            False,
+            (0, 0, 0),
+            thickness=3
+        )
+
+        return canny
 
     @staticmethod
     def _filterColor(img):
@@ -141,6 +151,14 @@ class Detector:
         # Create the overlay image
         overlay = np.zeros((HEIGHT, WIDTH, 3), dtype="uint8")
 
+        # Fill a specified polygon right in front of the car black to ignore horizontal lines
+        # -> Improves performance for hough
+        cv.fillPoly(
+            img,
+            np.array([IGNORED_ROI], dtype=np.int32),
+            (0, 0, 0)
+        )
+
         # Check if less than a fiftieth of the image is white
         if np.sum(img > 0) < WIDTH * HEIGHT // 50:
             # Use the performance variant of HoughLines
@@ -155,20 +173,22 @@ class Detector:
                     x1, y1 = (line[0], line[1])
                     x2, y2 = (line[2], line[3])
 
-                    # Only vertical lines are allowed
-                    if abs(y1 - y2) > 50:
+                    # Calculate the angle of the line to the image
+                    lineAngle = cv.fastAtan2(y2 - y1, x2 - x1)
+
+                    # Only vertical lines are allowed.
+                    # They have an angle between 25 and 335 degrees.
+                    # Other lines are considered as horizontal.
+                    if 25 < lineAngle < 335:
                         # Draw detected line, if specified
                         if DRAW_HOUGH:
                             cv.line(
-                                overlay,
+                                img,
                                 (x1, y1),
                                 (x2, y2),
-                                (0, 0, 255),
+                                (255, 255, 255),
                                 thickness=10
                             )
-
-                        # Calculate the angle of the line to the image
-                        lineAngle = cv.fastAtan2(y2 - y1, x2 - x1)
 
                         # Point is from the left line, if the angle is bigger than 270 degrees
                         isLeftLine = int(lineAngle > 270)

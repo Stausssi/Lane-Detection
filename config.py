@@ -17,6 +17,13 @@ ROI = [
     [.45 * WIDTH, 0.63 * HEIGHT],  # Top left
 ]
 
+IGNORED_ROI = [
+    [ROI[0][0] * 1.1, ROI[0][1] * 1.2],  # Top right
+    [ROI[1][0] * 0.8, ROI[1][1]],  # Bottom right
+    [ROI[2][0] * 3, ROI[2][1]],  # Bottom left
+    [ROI[3][0], ROI[3][1] * 1.2]  # Top left
+]
+
 # The destination ROI of the birds eye view
 WARPED_ROI = [
     [WIDTH - PADDING, 0],  # Top right
@@ -25,7 +32,7 @@ WARPED_ROI = [
     [PADDING, 0],  # Top left
 ]
 
-LINE_TOLERANCE = 75
+LINE_TOLERANCE = 25
 MAX_LIFETIME = 20
 
 Y_RANGE = np.arange(ROI[0][1], HEIGHT)

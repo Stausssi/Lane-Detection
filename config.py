@@ -1,10 +1,18 @@
-# All videos are 1280x720, so just hardcode this size
 import numpy as np
+import cv2 as cv
 
+# All videos are 1280x720, so just hardcode this size
 IMAGE_SIZE = (1280, 720)
 WIDTH, HEIGHT = IMAGE_SIZE
 
 # Debugging
+# Draw an HSV histogram. ATTENTION!! This is very heavy on the performance.
+SHOW_HIST = True
+
+# Show the color and edge filtered image
+SHOW_COMBINED = True
+
+# Draw the lines of the Hough detection
 DRAW_HOUGH = True
 
 # The ROI of the lane detection and camera warp
@@ -32,9 +40,21 @@ WARPED_ROI = [
     [PADDING, 0],  # Top left
 ]
 
-LINE_TOLERANCE = 25
-MAX_LIFETIME = 20
+# The values control how often a line is changed
+LINE_TOLERANCE = 50
+MAX_LIFETIME = 15
 
+# The range to calculate the fitted polynoms in
 Y_RANGE = np.arange(ROI[0][1], HEIGHT)
 
+# Line Color Filters
+MIN_YELLOW = np.array([15, 100, 100], dtype="uint8")
+MAX_YELLOW = np.array([100, 255, 255], dtype="uint8")
+
+MIN_WHITE = np.array([0, 0, 220], dtype="uint8")
+MAX_WHITE = np.array([255, 50, 255], dtype="uint8")
+
+CROSS_FILTER_5_5 = cv.getStructuringElement(cv.MORPH_CROSS, (5, 5))
+
+# The color to draw the detected line in
 LANE_COLOR = (0, 128, 0)

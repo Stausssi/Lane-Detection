@@ -1,6 +1,9 @@
 import cv2 as cv
 import numpy as np
-from typing import List, Dict
+from typing import List, Dict, Optional, Any
+
+from matplotlib import pyplot as plt
+
 from config import *
 from util import LinePoint
 
@@ -23,6 +26,48 @@ class Detector:
             }
         ]
 
+        self.currentPolynoms: List[Optional[Any]] = [None, None]
+
+    @staticmethod
+    def __getHist(img):
+        """
+        Creates the histogramm of the given image
+
+        Args:
+            img (np.ndarray): The image to create the histogramm of
+
+        Returns:
+            None: Nothing
+        """
+
+        # Convert the image to HSV
+        img = cv.cvtColor(img, cv.COLOR_RGB2HSV)
+
+        color = {
+            "b": ("Hue", [1, 256]),
+            "g": ("Sat", [1, 256]),
+            "r": ("Val", [1, 256])
+        }
+
+        fig = plt.figure()
+        ax = fig.add_subplot(1, 1, 1)
+        ax.set_title("Farbwerthistogramm")
+        ax.set_xlim([0, 256])
+
+        for i, (col, (label, ranges)) in enumerate(color.items()):
+            hist = cv.calcHist([img], [i], None, [256], ranges)
+            ax.plot(hist, color=col, label=label)
+
+        fig.legend()
+        fig.canvas.draw()
+
+        img = np.fromstring(fig.canvas.tostring_rgb(), dtype=np.uint8, sep='')
+        img = img.reshape(fig.canvas.get_width_height()[::-1] + (3,))
+
+        plt.close(fig)
+
+        return img
+
     # ---------- [Lane Detection] ---------- #
 
     def detectLines(self, img):
@@ -37,19 +82,57 @@ class Detector:
         """
 
         # First, segment the image
-        segmented = self._segmentImage(img)
+        img = self._segmentImage(img)
 
-        # Then filter by color
-        color = self._filterColor(segmented)
+        if SHOW_HIST:
+            cv.imshow("Hist", self.__getHist(img))
 
-        # Filter by shapes (Canny)
-        lineShapes = self._filterLineShape(segmented)
+        # Then. filter by color
+        color = self._filterColor(img)
+
+        # And finally filter by edges (Canny)
+        lineShapes = self._filterEdges(img)
 
         # Combine the pictures
         combined = cv.bitwise_or(color, lineShapes)
 
+        # Fill a specified polygon right in front of the car black to ignore horizontal lines
+        # -> Improves performance for hough
+        cv.fillPoly(
+            combined,
+            np.array([IGNORED_ROI], dtype=np.int32),
+            (0, 0, 0)
+        )
+
+        if SHOW_COMBINED:
+            cv.imshow("Combined", combined)
+
         # Perform Hough Line detection and return the overlay the method creates
         return self._houghDetection(combined)
+
+    def getCurvature(self):
+        """
+        Calculates the curvature of the line in the real word with the polynoms.
+
+        Returns:
+            float: The curvature, or None if no lines were detected
+        """
+
+        meterPerPixelY = 30 / HEIGHT
+
+        # The height where the evaluation of the polynom should take place
+        evaluationY = HEIGHT - CAR_HOOD_HEIGHT
+
+        radii = []
+        for fit in self.currentPolynoms:
+            radii.append(
+                ((1 + (2 * fit[0] * evaluationY * meterPerPixelY + fit[1]) ** 2) ** 1.5) / np.absolute(2 * fit[0])
+            )
+
+        if len(radii) > 0:
+            return np.mean(radii)
+        else:
+            return None
 
     @staticmethod
     def _segmentImage(img):
@@ -76,7 +159,7 @@ class Detector:
         return cv.bitwise_and(img, mask)
 
     @staticmethod
-    def _filterLineShape(img):
+    def _filterEdges(img):
         """
         Uses canny to filter edges out of the image.
 
@@ -91,7 +174,7 @@ class Detector:
         canny = cv.Canny(cv.GaussianBlur(img, (5, 5), 0), 50, 150)
 
         # Draw a black polygon around the ROI to remove edges of the ROI
-        cv.polylines(
+        cv.drawContours(
             canny,
             np.array([ROI], dtype=np.int32),
             False,
@@ -115,24 +198,13 @@ class Detector:
 
         img_hsv = cv.cvtColor(img, cv.COLOR_RGB2HSV)
 
-        min_yellow = np.array([20, 100, 100], dtype="uint8")
-        max_yellow = np.array([100, 255, 255], dtype="uint8")
-
-        sensitivity = 25
-        min_white = np.array([0, 0, 255 - sensitivity], dtype="uint8")
-        max_white = np.array([255, sensitivity, 255], dtype="uint8")
-
-        mask_yellow = cv.inRange(img_hsv, min_yellow, max_yellow)
-        mask_white = cv.inRange(img_hsv, min_white, max_white)
+        mask_yellow = cv.inRange(img_hsv, MIN_YELLOW, MAX_YELLOW)
+        mask_white = cv.inRange(img_hsv, MIN_WHITE, MAX_WHITE)
 
         combined = cv.bitwise_or(mask_white, mask_yellow)
 
         # Connect artefacts together -> strengthen the line
-        combined = cv.morphologyEx(combined, cv.MORPH_CLOSE, cv.getStructuringElement(cv.MORPH_CROSS, (5, 5)),
-                                   iterations=2)
-        # Remove singular artifacts
-        combined = cv.morphologyEx(combined, cv.MORPH_OPEN, cv.getStructuringElement(cv.MORPH_CROSS, (5, 5)),
-                                   iterations=1)
+        combined = cv.morphologyEx(combined, cv.MORPH_CLOSE, CROSS_FILTER_5_5, iterations=2)
 
         return combined
 
@@ -150,14 +222,6 @@ class Detector:
 
         # Create the overlay image
         overlay = np.zeros((HEIGHT, WIDTH, 3), dtype="uint8")
-
-        # Fill a specified polygon right in front of the car black to ignore horizontal lines
-        # -> Improves performance for hough
-        cv.fillPoly(
-            img,
-            np.array([IGNORED_ROI], dtype=np.int32),
-            (0, 0, 0)
-        )
 
         # Check if less than a fiftieth of the image is white
         if np.sum(img > 0) < WIDTH * HEIGHT // 50:
@@ -248,6 +312,9 @@ class Detector:
                     2
                 )
                 estimator = np.poly1d(fittedPoly)
+
+                # Save the polynom
+                self.currentPolynoms[index] = fittedPoly
 
                 # Get all points via the estimator
                 polyLine = np.int32([

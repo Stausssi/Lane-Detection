@@ -20,6 +20,7 @@ def main():
     valid = True
 
     detector = Detector()
+
     # Whether other objects (cars, etc.) should be detected
     detectObjects = False
 
@@ -30,9 +31,6 @@ def main():
             valid, frame = videoCapture.read()
 
             if valid:
-                # Undistort the image
-                frame = camera.undistort(frame)
-
                 # Birds-Eye view
                 birdsEye = camera.birdsEyeView(frame)
 
@@ -45,6 +43,26 @@ def main():
                 # Also detect objects, if wanted
                 if detectObjects:
                     object_overlay = detector.detectObjects(frame)
+
+                # Undistort the image
+                lane_frame = camera.undistort(lane_frame)
+
+                # Display the line curvature
+                curvature = detector.getCurvature()
+                if curvature is not None:
+                    curvatureText = f"Curvature: {round(curvature, 0)} m"
+                else:
+                    curvatureText = "No lines detected!"
+
+                cv.putText(
+                    lane_frame,
+                    curvatureText,
+                    (5, 15),
+                    cv.FONT_HERSHEY_PLAIN,
+                    1.25,
+                    (0, 0, 0),
+                    2
+                )
 
                 # Show the video feeds
                 cv.imshow("Video Playback", lane_frame)

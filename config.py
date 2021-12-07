@@ -9,6 +9,9 @@ WIDTH, HEIGHT = IMAGE_SIZE
 # Draw an HSV histogram. ATTENTION!! This is very heavy on the performance.
 SHOW_HIST = False
 
+# Show the segmented area of the image
+SHOW_SEGMENTED = True
+
 # Show the color and edge filtered image
 SHOW_COMBINED = True
 
@@ -23,13 +26,6 @@ ROI = [
     [WIDTH - PADDING, HEIGHT - CAR_HOOD_HEIGHT],  # Bottom right
     [PADDING, HEIGHT - CAR_HOOD_HEIGHT],  # Bottom left
     [.45 * WIDTH, 0.63 * HEIGHT],  # Top left
-]
-
-IGNORED_ROI = [
-    [ROI[0][0] * 1.1, ROI[0][1] * 1.2],  # Top right
-    [ROI[1][0] * 0.8, ROI[1][1]],  # Bottom right
-    [ROI[2][0] * 3, ROI[2][1]],  # Bottom left
-    [ROI[3][0], ROI[3][1] * 1.2]  # Top left
 ]
 
 # The destination ROI of the birds eye view

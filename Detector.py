@@ -25,7 +25,10 @@ class Detector:
             }
         ]
 
+        # This list is needed for the curvature calculation
         self.currentPolynoms: List[Optional[Any]] = [None, None]
+
+        self.adjustedROI = ROI
 
     @staticmethod
     def __getHist(img):
@@ -83,6 +86,9 @@ class Detector:
         # First, segment the image
         img = self._segmentImage(img)
 
+        if SHOW_SEGMENTED:
+            cv.imshow("Segmented", img)
+
         if SHOW_HIST:
             cv.imshow("Hist", self.__getHist(img))
 
@@ -94,14 +100,6 @@ class Detector:
 
         # Combine the pictures
         combined = cv.bitwise_or(color, edges)
-
-        # Fill a specified polygon right in front of the car black to ignore horizontal lines
-        # -> Improves performance for hough
-        cv.fillPoly(
-            combined,
-            np.array([IGNORED_ROI], dtype=np.int32),
-            (0, 0, 0)
-        )
 
         if SHOW_COMBINED:
             cv.imshow("Combined", combined)
@@ -133,8 +131,7 @@ class Detector:
         else:
             return None
 
-    @staticmethod
-    def _segmentImage(img):
+    def _segmentImage(self, img):
         """
         Segments the image by extracting the ROI for lane detection.
 
@@ -147,7 +144,6 @@ class Detector:
 
         mask = np.zeros_like(img, dtype=np.uint8)
 
-        # TODO: maybe adjust ROI depending on curvature
         shape = img.shape
         if len(shape) > 2:
             channel_count = shape[2]
@@ -155,11 +151,10 @@ class Detector:
         else:
             ignore_mask_color = 255
 
-        cv.fillPoly(mask, np.array([ROI], dtype=np.int32), ignore_mask_color)
+        cv.fillPoly(mask, np.array([self.adjustedROI], dtype=np.int32), ignore_mask_color)
         return cv.bitwise_and(img, mask)
 
-    @staticmethod
-    def _filterEdges(img):
+    def _filterEdges(self, img):
         """
         Uses canny to filter edges out of the image.
 
@@ -176,7 +171,7 @@ class Detector:
         # Draw a black polygon around the ROI to remove edges of the ROI
         cv.drawContours(
             canny,
-            np.array([ROI], dtype=np.int32),
+            np.array([self.adjustedROI], dtype=np.int32),
             False,
             (0, 0, 0),
             thickness=3
@@ -288,6 +283,8 @@ class Detector:
         # Create lists for storing values
         invalidPoints = []
         polyLines = []
+        potentialRightTop = ROI[0][0]
+        potentialLeftTop = ROI[3][0]
 
         # Go over each line
         for index, line in enumerate(self.currentLinePoints):
@@ -323,9 +320,19 @@ class Detector:
 
                 if index == 0:
                     polyLines.extend(polyLine)
+
+                    # Adjust the top ROI point of the right side
+                    potentialTop = (ROI[0][0] + estimator(ROI[0][1]) + LINE_TOLERANCE) // 2
+                    if potentialTop < WIDTH:
+                        potentialRightTop = potentialTop
                 else:
                     # Flip to ensure, that the filled poly is solid and not crossed
                     polyLines.extend(np.flipud(polyLine))
+
+                    # Adjust the top ROI point of the left side
+                    potentialTop = (ROI[3][0] + estimator(ROI[3][1]) - LINE_TOLERANCE) // 2
+                    if 0 < potentialTop:
+                        potentialLeftTop = potentialTop
 
                 # Draw the line marking
                 cv.polylines(
@@ -335,6 +342,11 @@ class Detector:
                     color=LANE_COLOR,
                     thickness=5
                 )
+
+        # Update the ROI points, if they are at least 50px away from each other
+        if potentialRightTop - potentialLeftTop > 50:
+            self.adjustedROI[0][0] = potentialRightTop
+            self.adjustedROI[3][0] = potentialLeftTop
 
         # Remove invalid points from the dict
         for invalidX in invalidPoints:

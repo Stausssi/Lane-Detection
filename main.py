@@ -1,12 +1,10 @@
 import glob
-
-import cv2 as cv
 from timeit import default_timer as timer
 
 from Camera import Camera
 from Detector import Detector
-from util import displayTextOnImage
 from config import *
+from util import displayTextOnImage
 
 
 def main():
@@ -70,7 +68,6 @@ def main():
                     curvatureText = f"Curvature: {round(curvature, 0)} m"
                 else:
                     curvatureText = "No lines detected!"
-
                 displayTextOnImage(lane_frame, curvatureText, (5, 35))
 
                 # Show the video feeds

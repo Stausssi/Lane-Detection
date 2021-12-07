@@ -90,10 +90,10 @@ class Detector:
         color = self._filterColor(img)
 
         # And finally filter by edges (Canny)
-        lineShapes = self._filterEdges(img)
+        edges = self._filterEdges(img)
 
         # Combine the pictures
-        combined = cv.bitwise_or(color, lineShapes)
+        combined = cv.bitwise_or(color, edges)
 
         # Fill a specified polygon right in front of the car black to ignore horizontal lines
         # -> Improves performance for hough

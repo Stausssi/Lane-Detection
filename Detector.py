@@ -1,7 +1,6 @@
-import cv2 as cv
-import numpy as np
 from typing import List, Dict, Optional, Any
 
+import numpy as np
 from matplotlib import pyplot as plt
 
 from config import *
@@ -148,6 +147,7 @@ class Detector:
 
         mask = np.zeros_like(img, dtype=np.uint8)
 
+        # TODO: maybe adjust ROI depending on curvature
         shape = img.shape
         if len(shape) > 2:
             channel_count = shape[2]

@@ -1,5 +1,5 @@
-import numpy as np
 import cv2 as cv
+import numpy as np
 
 # All videos are 1280x720, so just hardcode this size
 IMAGE_SIZE = (1280, 720)
@@ -7,7 +7,7 @@ WIDTH, HEIGHT = IMAGE_SIZE
 
 # Debugging
 # Draw an HSV histogram. ATTENTION!! This is very heavy on the performance.
-SHOW_HIST = True
+SHOW_HIST = False
 
 # Show the color and edge filtered image
 SHOW_COMBINED = True

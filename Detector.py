@@ -367,7 +367,13 @@ class Detector:
             np.ndarray: The image with the detected objects
         """
 
-        # TODO: Implement
+        cars_overlay = np.zeros((HEIGHT, WIDTH, 3), dtype="uint8")
+
+        cars = CARS_CASCADE.detectMultiScale(image, 1.15, 2)
+        for (x, y, w, h) in cars:
+            cv.rectangle(cars_overlay, (x, y), (x + w, y + h), color=(0, 255, 0), thickness=2)
+
+        return cars_overlay
+
         # https://techvidvan.com/tutorials/opencv-vehicle-detection-classification-counting/
         # https://www.pyimagesearch.com/2019/12/02/opencv-vehicle-detection-tracking-and-speed-estimation/
-        return cv.rectangle(image, (225, 225), (275, 275), (255, 0, 0), 1)

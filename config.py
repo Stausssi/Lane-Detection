@@ -13,7 +13,7 @@ SHOW_HIST = False
 SHOW_COMBINED = True
 
 # Draw the lines of the Hough detection
-DRAW_HOUGH = True
+DRAW_HOUGH = False
 
 # The ROI of the lane detection and camera warp
 CAR_HOOD_HEIGHT = 60
@@ -58,3 +58,6 @@ CROSS_FILTER_5_5 = cv.getStructuringElement(cv.MORPH_CROSS, (5, 5))
 
 # The color to draw the detected line in
 LANE_COLOR = (0, 128, 0)
+
+# Car Detection
+CARS_CASCADE = cv.CascadeClassifier('cars.xml')

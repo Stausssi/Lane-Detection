@@ -54,6 +54,8 @@ def main():
                 if detectObjects:
                     object_overlay = detector.detectObjects(frame)
 
+                    lane_frame = cv.addWeighted(lane_frame, 1, object_overlay, 0.5, 1)
+
                 # Undistort the image
                 lane_frame = camera.undistort(lane_frame)
 

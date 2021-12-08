@@ -43,7 +43,10 @@ def main():
                 birdsEye = camera.birdsEyeView(frame)
 
                 # Detect the lines
-                lane_overlay = detector.detectLines(frame)
+                lane_overlay = detector.detectLines(birdsEye)
+
+                # Re-transform the overlay from birds eye
+                lane_overlay = camera.normalView(lane_overlay)
 
                 # Overlay the lane overlay on the image
                 lane_frame = cv.addWeighted(frame, 1, lane_overlay, 0.5, 1)
@@ -73,8 +76,6 @@ def main():
                 # Show the video feeds
                 cv.imshow("Video Playback", lane_frame)
                 cv.imshow("Birds-Eye", birdsEye)
-                # cv.imshow("Lines", lane_overlay)
-                # cv.imshow("Lines Birds-Eye", detector.detectLines(birdsEye, False))
 
                 # Check if escape key or 'q' was pressed
                 key = cv.waitKey(5)

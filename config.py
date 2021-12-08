@@ -10,7 +10,7 @@ WIDTH, HEIGHT = IMAGE_SIZE
 SHOW_HIST = False
 
 # Show the segmented area of the image
-SHOW_SEGMENTED = True
+SHOW_SEGMENTED = False
 
 # Show the color and edge filtered image
 SHOW_COMBINED = True
@@ -20,11 +20,11 @@ DRAW_HOUGH = False
 
 # The ROI of the lane detection and camera warp
 CAR_HOOD_HEIGHT = 60
-PADDING = 150
+PADDING = 100
 ROI = [
-    [.55 * WIDTH, 0.63 * HEIGHT],  # Top right
+    [.555 * WIDTH, 0.63 * HEIGHT],  # Top right
     [WIDTH - PADDING, HEIGHT - CAR_HOOD_HEIGHT],  # Bottom right
-    [PADDING, HEIGHT - CAR_HOOD_HEIGHT],  # Bottom left
+    [PADDING * 2, HEIGHT - CAR_HOOD_HEIGHT],  # Bottom left
     [.45 * WIDTH, 0.63 * HEIGHT],  # Top left
 ]
 
@@ -41,16 +41,16 @@ LINE_TOLERANCE = 50
 MAX_LIFETIME = 15
 
 # The range to calculate the fitted polynoms in
-Y_RANGE = np.arange(ROI[0][1], HEIGHT)
+Y_RANGE = np.arange(0, HEIGHT)
 
 # Line Color Filters
-MIN_YELLOW = np.array([15, 100, 100], dtype="uint8")
-MAX_YELLOW = np.array([100, 255, 255], dtype="uint8")
+MIN_YELLOW = np.array([50, 75, 200], dtype="uint8")
+MAX_YELLOW = np.array([125, 255, 255], dtype="uint8")
 
 MIN_WHITE = np.array([0, 0, 220], dtype="uint8")
 MAX_WHITE = np.array([255, 50, 255], dtype="uint8")
 
-CROSS_FILTER_5_5 = cv.getStructuringElement(cv.MORPH_CROSS, (5, 5))
+CROSS_FILTER_5_5 = cv.getStructuringElement(cv.MORPH_CROSS, (3, 3))
 
 # The color to draw the detected line in
 LANE_COLOR = (0, 128, 0)

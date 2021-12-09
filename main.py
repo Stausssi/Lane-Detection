@@ -1,6 +1,6 @@
 import glob
 from timeit import default_timer as timer
-
+import cv2 as cv
 from Camera import Camera
 from Detector import Detector
 from config import *
@@ -24,14 +24,14 @@ def main():
     detector = Detector()
 
     # Whether other objects (cars, etc.) should be detected
-    detectObjects = False
+    detectObjects = True
 
     if videoCapture.isOpened():
         print("Playback started!")
 
         # Get the maximum framerate of the video
         videoFramerate = int(videoCapture.get(cv.CAP_PROP_FPS))
-        frames = []
+        frameRates = []
 
         while videoCapture.isOpened() and valid:
             valid, frame = videoCapture.read()
@@ -54,8 +54,10 @@ def main():
 
                 # Also detect objects, if wanted
                 if detectObjects:
-                    object_overlay = detector.detectObjects(frame)
+                    car_overlay = detector.detectCars(frame)
+                    sign_overlay = detector.detectSigns(frame)
 
+                    object_overlay = cv.bitwise_or(car_overlay, sign_overlay)
                     lane_frame = cv.addWeighted(lane_frame, 1, object_overlay, 0.5, 1)
 
                 # Undistort the image
@@ -64,7 +66,7 @@ def main():
                 # Calculate the Framerate
                 frameTime = timer() - startTimer
                 frameRate = int(1 / frameTime)
-                frames.append(frameRate)
+                frameRates.append(frameRate)
                 displayTextOnImage(lane_frame, f"FPS: {frameRate} / {videoFramerate}", (5, 15))
 
                 # Display the line curvature
@@ -85,8 +87,10 @@ def main():
                 if key == 27 or key == ord("q"):
                     print("ESC or Q pressed! Exiting playback!")
                     valid = False
+                elif key == ord("p"):
+                    cv.waitKey(0)
 
-        print(f"Video finished playing with a mean framerate of {np.around(np.mean(frames), 1)}")
+        print(f"Video finished playing with a mean framerate of {np.around(np.mean(frameRates), 1)}")
     else:
         print("Couldn't start the playback!")
 

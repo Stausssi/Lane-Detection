@@ -1,5 +1,6 @@
 from typing import List, Dict, Optional, Any
 
+import cv2 as cv
 import numpy as np
 from matplotlib import pyplot as plt
 
@@ -370,24 +371,78 @@ class Detector:
     # ---------- [Object Detection] ---------- #
 
     @staticmethod
-    def detectObjects(image):
+    def detectCars(image):
         """
-        Detects other objects (cars, etc.) in the given image.
+        Detects cars in the given image.
 
         Args:
-            image (np.ndarray): The image to analyse and detect objects in
+            image (np.ndarray): The image to analyse and detect cars in
 
         Returns:
-            np.ndarray: The image with the detected objects
+            np.ndarray: An overlay with the detected cars
         """
 
         cars_overlay = np.zeros((HEIGHT, WIDTH, 3), dtype="uint8")
 
-        cars = CARS_CASCADE.detectMultiScale(image, 1.15, 2)
-        for (x, y, w, h) in cars:
-            cv.rectangle(cars_overlay, (x, y), (x + w, y + h), color=(0, 255, 0), thickness=2)
+        # cars = CARS_CASCADE.detectMultiScale(image, 1.15, 2)
+        # for (x, y, w, h) in cars:
+        #     cv.rectangle(cars_overlay, (x, y), (x + w, y + h), color=(0, 255, 0), thickness=2)
 
         return cars_overlay
 
         # https://techvidvan.com/tutorials/opencv-vehicle-detection-classification-counting/
         # https://www.pyimagesearch.com/2019/12/02/opencv-vehicle-detection-tracking-and-speed-estimation/
+
+    @staticmethod
+    def detectSigns(image):
+        """
+        Detects road signs in the given image.
+
+        Args:
+            image (np.ndarray): The image to analyse and detect cars in
+
+        Returns:
+            np.ndarray: An overlay with the detected signs
+        """
+
+        image = cv.cvtColor(image, cv.COLOR_BGR2HSV)
+
+        sign_overlay = np.zeros((HEIGHT, WIDTH, 3), dtype="uint8")
+
+        # Fill ROI with black to prevent lane markings to interfere
+        cv.fillPoly(
+            image,
+            np.array([ROI], dtype=np.int32),
+            (0, 0, 0)
+        )
+        cv.rectangle(
+            image,
+            (0, HEIGHT),
+            (WIDTH, HEIGHT - 150),
+            (0, 0, 0),
+            cv.FILLED
+        )
+
+        # Green signs
+        sign_image = cv.inRange(image, MIN_GREEN_SIGN, MAX_GREEN_SIGN)
+        # Yellow signs
+        sign_image = cv.bitwise_or(sign_image, cv.inRange(image, MIN_YELLOW_SIGN, MAX_YELLOW_SIGN))
+
+        cv.imshow("Signs", sign_image)
+        contours, hier = cv.findContours(sign_image, cv.RETR_EXTERNAL, cv.CHAIN_APPROX_SIMPLE)
+
+        for contour in contours:
+            if cv.contourArea(contour) > 120:
+                x, y, w, h = cv.boundingRect(contour)
+                cv.rectangle(sign_overlay, (x, y), (x + w, y+h), (0, 255, 0), 3)
+                cv.putText(
+                    sign_overlay,
+                    "Sign",
+                    (x, y - 15),
+                    cv.FONT_HERSHEY_PLAIN,
+                    1.25,
+                    (0, 255, 0),
+                    2
+                )
+
+        return sign_overlay

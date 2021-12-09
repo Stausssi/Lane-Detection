@@ -1,5 +1,5 @@
-import cv2 as cv
 import numpy as np
+import cv2
 
 # All videos are 1280x720, so just hardcode this size
 IMAGE_SIZE = (1280, 720)
@@ -50,10 +50,15 @@ MAX_YELLOW = np.array([125, 255, 255], dtype="uint8")
 MIN_WHITE = np.array([0, 0, 220], dtype="uint8")
 MAX_WHITE = np.array([255, 50, 255], dtype="uint8")
 
-CROSS_FILTER_5_5 = cv.getStructuringElement(cv.MORPH_CROSS, (3, 3))
-
 # The color to draw the detected line in
 LANE_COLOR = (0, 128, 0)
 
 # Car Detection
-CARS_CASCADE = cv.CascadeClassifier('cars.xml')
+CARS_CASCADE = cv2.CascadeClassifier('cars.xml')
+
+# Road Sign Detection
+MIN_GREEN_SIGN = np.array([70, 75, 35], dtype="uint8")
+MAX_GREEN_SIGN = np.array([85, 255, 255], dtype="uint8")
+
+MIN_YELLOW_SIGN = np.array([10, 150, 100], dtype="uint8")
+MAX_YELLOW_SIGN = np.array([25, 255, 200], dtype="uint8")

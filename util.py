@@ -12,6 +12,9 @@ class LinePoint:
     def increaseLifetime(self):
         self._lifetime += 1
 
+    def decreaseLifetime(self):
+        self._lifetime -= 1
+
     def getX(self):
         return self._x
 

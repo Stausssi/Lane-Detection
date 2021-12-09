@@ -37,7 +37,7 @@ WARPED_ROI = [
 ]
 
 # The values control how often a line is changed
-LINE_TOLERANCE = 50
+LINE_TOLERANCE = 15
 MAX_LIFETIME = 15
 
 # The range to calculate the fitted polynoms in

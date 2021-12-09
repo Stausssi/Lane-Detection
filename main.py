@@ -31,6 +31,7 @@ def main():
 
         # Get the maximum framerate of the video
         videoFramerate = int(videoCapture.get(cv.CAP_PROP_FPS))
+        frames = []
 
         while videoCapture.isOpened() and valid:
             valid, frame = videoCapture.read()
@@ -63,6 +64,7 @@ def main():
                 # Calculate the Framerate
                 frameTime = timer() - startTimer
                 frameRate = int(1 / frameTime)
+                frames.append(frameRate)
                 displayTextOnImage(lane_frame, f"FPS: {frameRate} / {videoFramerate}", (5, 15))
 
                 # Display the line curvature
@@ -72,6 +74,7 @@ def main():
                 else:
                     curvatureText = "No lines detected!"
                 displayTextOnImage(lane_frame, curvatureText, (5, 35))
+                displayTextOnImage(lane_frame, f"Car offset: {detector.getCarPosition()} m", (3, 55))
 
                 # Show the video feeds
                 cv.imshow("Video Playback", lane_frame)
@@ -83,7 +86,7 @@ def main():
                     print("ESC or Q pressed! Exiting playback!")
                     valid = False
 
-        print("Video finished!")
+        print(f"Video finished playing with a mean framerate of {np.around(np.mean(frames), 1)}")
     else:
         print("Couldn't start the playback!")
 

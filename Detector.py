@@ -1,6 +1,5 @@
 from typing import List, Dict, Optional, Any
 
-import cv2
 import numpy as np
 from matplotlib import pyplot as plt
 
@@ -94,7 +93,7 @@ class Detector:
         if SHOW_HIST:
             cv.imshow("Hist", self.__getHist(img))
 
-        # Then. filter by color
+        # Then, filter by color
         color = self._filterColor(img)
 
         # And finally filter by edges (Canny)
@@ -132,6 +131,27 @@ class Detector:
             return np.mean(radii)
         else:
             return None
+
+    def getCarPosition(self):
+        """
+        Calculates the position of the car in the lane.
+
+        Returns:
+            float: The offset of the car
+        """
+
+        location = WIDTH // 2
+        metersPerPixelX = 4 / WIDTH
+
+        left_poly = self.currentPolynoms[1]
+        right_poly = self.currentPolynoms[0]
+
+        bottom_left = left_poly[0] * HEIGHT ** 2 + left_poly[1] * HEIGHT + left_poly[2]
+        bottom_right = right_poly[0] * HEIGHT ** 2 + right_poly[1] * HEIGHT + right_poly[2]
+
+        lane_center = (bottom_right - bottom_left) / 2 + bottom_left
+
+        return round((location - lane_center) * metersPerPixelX, 2)
 
     def _segmentImage(self, img):
         """
@@ -207,10 +227,12 @@ class Detector:
         # Create the overlay image
         overlay = np.zeros((HEIGHT, WIDTH, 3), dtype="uint8")
 
+        numUpdatedPoints = 0
+
         # Check if less than a third of the image is white
         if np.sum(img > 0) < WIDTH * HEIGHT // 3:
             # Use the performance variant of HoughLines
-            lines = cv.HoughLinesP(img, 1, np.pi / 180, 150, maxLineGap=75)
+            lines = cv.HoughLinesP(img, 1, np.pi / 180, 150, maxLineGap=75, minLineLength=50)
 
             if lines is not None:
                 # Go over every detected hough line
@@ -225,9 +247,9 @@ class Detector:
                     lineAngle = cv.fastAtan2(y2 - y1, x2 - x1)
 
                     # Only vertical lines are allowed.
-                    # They have an angle between 25 and 335 degrees.
+                    # They have an angle between 15 and 345 degrees.
                     # Other lines are considered as horizontal.
-                    if abs(y2 - y1) > 50:
+                    if 15 < lineAngle < 345:
                         # Draw detected line, if specified
                         if DRAW_HOUGH:
                             cv.line(
@@ -258,13 +280,18 @@ class Detector:
                                 currentX = currentPoint.getX()
                                 currentLifetime = currentPoint.getLifetime()
 
-                                # ... if the euclidean distance is smaller than the tolerance, or the previous point
+                                xDistance = abs(newX - currentX)
+
+                                # ... if the euclidean distance is bigger than the tolerance, or the previous point
                                 # exceeded the lifetime
-                                saveNewValue = abs(newX - currentX) < LINE_TOLERANCE or currentLifetime >= MAX_LIFETIME
+                                saveNewValue = xDistance > LINE_TOLERANCE or currentLifetime >= MAX_LIFETIME
+                                if xDistance < LINE_TOLERANCE:
+                                    currentPoint.decreaseLifetime()
 
                                 # newX = (currentX + 2 * newX) // 3
 
                             if saveNewValue:
+                                numUpdatedPoints += 1
                                 # Save the value
                                 self.currentLinePoints[isLeftLine].update({
                                     y: LinePoint(newX)
@@ -272,13 +299,16 @@ class Detector:
         else:
             print("too much white")
 
+        totalPoints = len(self.currentLinePoints[0]) + len(self.currentLinePoints[1])
+
         # Create lists for storing values
         invalidPoints = []
         polyLines = []
 
         # Go over each line
         for index, line in enumerate(self.currentLinePoints):
-            polyPoints = []
+            polyPointsY = []
+            polyPointsX = []
 
             # Go over every point in the line
             for y, linePoint in line.items():
@@ -289,19 +319,24 @@ class Detector:
                     invalidPoints.append(y)
                 else:
                     # Schedule the point for the poly fit
-                    polyPoints.append([y, linePoint.getX()])
+                    polyPointsY.append(y)
+                    polyPointsX.append(linePoint.getX())
 
-            if len(polyPoints) > 0:
-                # Estimate the polynomial function if many points changed
-                fittedPoly = np.polyfit(
-                    [y for (y, _) in polyPoints],
-                    [x for (_, x) in polyPoints],
-                    2
-                )
-                estimator = np.poly1d(fittedPoly)
+            if len(polyPointsY) > 0:
+                if numUpdatedPoints > totalPoints / 10 or self.currentEstimators[index] is None:
+                    # Estimate the polynomial function if many points changed
+                    fittedPoly = np.polyfit(
+                        polyPointsY,
+                        polyPointsX,
+                        2
+                    )
+                    estimator = np.poly1d(fittedPoly)
 
-                # Save the polynom
-                self.currentPolynoms[index] = fittedPoly
+                    # Save the polynom
+                    self.currentPolynoms[index] = fittedPoly
+                    self.currentEstimators[index] = estimator
+                else:
+                    estimator = self.currentEstimators[index]
 
                 # Get all points via the estimator
                 polyLine = np.int32([
@@ -313,15 +348,6 @@ class Detector:
                 else:
                     # Flip to ensure, that the filled poly is solid and not crossed
                     polyLines.extend(np.flipud(polyLine))
-
-                # Draw the line marking
-                # cv.polylines(
-                #     overlay,
-                #     [polyLine],
-                #     False,
-                #     color=LANE_COLOR,
-                #     thickness=5
-                # )
 
         # Remove invalid points from the dict
         for invalidX in invalidPoints:

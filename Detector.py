@@ -371,6 +371,23 @@ class Detector:
     # ---------- [Object Detection] ---------- #
 
     @staticmethod
+    def detectObjects(image):
+        """
+        Detects objects (signs, cars, etc.) in the given image.
+
+        Args:
+            image (np.ndarray): The image to perform the detection on.
+
+        Returns:
+            np.ndarray: An overlay with boxes for every detected object
+        """
+
+        car_overlay = Detector.detectCars(image)
+        sign_overlay = Detector.detectSigns(image)
+
+        return cv.bitwise_or(car_overlay, sign_overlay)
+
+    @staticmethod
     def detectCars(image):
         """
         Detects cars in the given image.
@@ -428,11 +445,10 @@ class Detector:
         # Yellow signs
         sign_image = cv.bitwise_or(sign_image, cv.inRange(image, MIN_YELLOW_SIGN, MAX_YELLOW_SIGN))
 
-        cv.imshow("Signs", sign_image)
-        contours, hier = cv.findContours(sign_image, cv.RETR_EXTERNAL, cv.CHAIN_APPROX_SIMPLE)
+        contours, _ = cv.findContours(sign_image, cv.RETR_EXTERNAL, cv.CHAIN_APPROX_SIMPLE)
 
         for contour in contours:
-            if cv.contourArea(contour) > 120:
+            if cv.contourArea(contour) > 75:
                 x, y, w, h = cv.boundingRect(contour)
                 cv.rectangle(sign_overlay, (x, y), (x + w, y+h), (0, 255, 0), 3)
                 cv.putText(
@@ -442,7 +458,7 @@ class Detector:
                     cv.FONT_HERSHEY_PLAIN,
                     1.25,
                     (0, 255, 0),
-                    2
+                    1
                 )
 
         return sign_overlay

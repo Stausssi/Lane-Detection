@@ -60,5 +60,5 @@ CARS_CASCADE = cv2.CascadeClassifier('cars.xml')
 MIN_GREEN_SIGN = np.array([70, 75, 35], dtype="uint8")
 MAX_GREEN_SIGN = np.array([85, 255, 255], dtype="uint8")
 
-MIN_YELLOW_SIGN = np.array([10, 150, 100], dtype="uint8")
+MIN_YELLOW_SIGN = np.array([10, 185, 100], dtype="uint8")
 MAX_YELLOW_SIGN = np.array([25, 255, 200], dtype="uint8")

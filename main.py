@@ -24,7 +24,7 @@ def main():
     detector = Detector()
 
     # Whether other objects (cars, etc.) should be detected
-    detectObjects = True
+    detectObjects = False
 
     if videoCapture.isOpened():
         print("Playback started!")
@@ -54,11 +54,9 @@ def main():
 
                 # Also detect objects, if wanted
                 if detectObjects:
-                    car_overlay = detector.detectCars(frame)
-                    sign_overlay = detector.detectSigns(frame)
+                    object_overlay = detector.detectObjects(frame)
 
-                    object_overlay = cv.bitwise_or(car_overlay, sign_overlay)
-                    lane_frame = cv.addWeighted(lane_frame, 1, object_overlay, 0.5, 1)
+                    lane_frame = cv.bitwise_or(frame, object_overlay)
 
                 # Undistort the image
                 lane_frame = camera.undistort(lane_frame)

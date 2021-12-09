@@ -45,7 +45,7 @@ class Detector:
         """
 
         # Convert the image to HSV
-        img = cv.cvtColor(img, cv.COLOR_RGB2HSV)
+        img = cv.cvtColor(img, cv.COLOR_BGR2HSV)
 
         color = {
             "b": ("Hue", [1, 256]),
@@ -85,29 +85,17 @@ class Detector:
             np.ndarray: The image with lines drawn onto it
         """
 
-        # First, segment the image
-        # img = self._segmentImage(img)
-
-        if SHOW_SEGMENTED:
-            cv.imshow("Segmented", img)
-
         if SHOW_HIST:
             cv.imshow("Hist", self.__getHist(img))
 
-        # Then, filter by color
+        # Filtering by color is more than enough for the birds eye view
         color = self._filterColor(img)
 
-        # And finally filter by edges (Canny)
-        edges = self._filterEdges(img)
-
-        # Combine the pictures
-        combined = cv.bitwise_or(color, edges)
-
-        if SHOW_COMBINED:
-            cv.imshow("Combined", combined)
+        if SHOW_FILTERED:
+            cv.imshow("Combined", color)
 
         # Perform Hough Line detection and return the overlay the method creates
-        return self._houghDetection(combined)
+        return self._houghDetection(color)
 
     def getCurvature(self):
         """
@@ -117,15 +105,10 @@ class Detector:
             float: The curvature, or None if no lines were detected
         """
 
-        meterPerPixelY = 30 / HEIGHT
-
-        # The height where the evaluation of the polynom should take place
-        evaluationY = HEIGHT - CAR_HOOD_HEIGHT
-
         radii = []
         for fit in self.currentPolynoms:
             radii.append(
-                ((1 + (2 * fit[0] * evaluationY * meterPerPixelY + fit[1]) ** 2) ** 1.5) / np.absolute(2 * fit[0])
+                ((1 + (2 * fit[0] * EVALUATION_Y * MPP_Y + fit[1]) ** 2) ** 1.5) / np.absolute(2 * fit[0])
             )
 
         if len(radii) > 0:
@@ -133,16 +116,13 @@ class Detector:
         else:
             return None
 
-    def getCarPosition(self):
+    def getCenterOffset(self):
         """
-        Calculates the position of the car in the lane.
+        Calculates the position offset of the car in the lane.
 
         Returns:
             float: The offset of the car
         """
-
-        location = WIDTH // 2
-        metersPerPixelX = 4 / WIDTH
 
         left_poly = self.currentPolynoms[1]
         right_poly = self.currentPolynoms[0]
@@ -152,7 +132,7 @@ class Detector:
 
         lane_center = (bottom_right - bottom_left) / 2 + bottom_left
 
-        return round((location - lane_center) * metersPerPixelX, 2)
+        return round((DEFAULT_CENTER - lane_center) * MPP_X, 2)
 
     # def _segmentImage(self, img):
     #     """
@@ -195,7 +175,7 @@ class Detector:
     @staticmethod
     def _filterColor(img):
         """
-        Filters yellow and white out of the given image.
+        Filters yellow and white markings out of the given image.
 
         Args:
             img (np.ndarray): The image to filter the color of
@@ -204,7 +184,7 @@ class Detector:
             np.ndarray: The image containing only white and yellow
         """
 
-        img_hsv = cv.cvtColor(img, cv.COLOR_RGB2HSV)
+        img_hsv = cv.cvtColor(img, cv.COLOR_BGR2HSV)
 
         mask_yellow = cv.inRange(img_hsv, MIN_YELLOW, MAX_YELLOW)
         mask_white = cv.inRange(img_hsv, MIN_WHITE, MAX_WHITE)
@@ -233,7 +213,7 @@ class Detector:
         # Check if less than a third of the image is white
         if np.sum(img > 0) < WIDTH * HEIGHT // 3:
             # Use the performance variant of HoughLines
-            lines = cv.HoughLinesP(img, 1, np.pi / 180, 150, maxLineGap=75, minLineLength=50)
+            lines = cv.HoughLinesP(img, 1, np.pi / 180, 150, maxLineGap=50, minLineLength=50)
 
             if lines is not None:
                 # Go over every detected hough line

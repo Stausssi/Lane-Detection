@@ -74,14 +74,14 @@ def main():
                 else:
                     curvatureText = "No lines detected!"
                 displayTextOnImage(lane_frame, curvatureText, (5, 35))
-                displayTextOnImage(lane_frame, f"Car offset: {detector.getCarPosition()} m", (3, 55))
+                displayTextOnImage(lane_frame, f"Center offset: {detector.getCenterOffset()} m", (3, 55))
 
                 # Show the video feeds
                 cv.imshow("Video Playback", lane_frame)
                 cv.imshow("Birds-Eye", birdsEye)
 
                 # Check if escape key or 'q' was pressed
-                key = cv.waitKey(5)
+                key = cv.waitKey(1)
                 if key == 27 or key == ord("q"):
                     print("ESC or Q pressed! Exiting playback!")
                     valid = False

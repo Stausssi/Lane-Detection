@@ -9,11 +9,8 @@ WIDTH, HEIGHT = IMAGE_SIZE
 # Draw an HSV histogram. ATTENTION!! This is very heavy on the performance.
 SHOW_HIST = False
 
-# Show the segmented area of the image
-SHOW_SEGMENTED = False
-
-# Show the color and edge filtered image
-SHOW_COMBINED = True
+# Show the filtered image
+SHOW_FILTERED = True
 
 # Draw the lines of the Hough detection
 DRAW_HOUGH = False
@@ -37,18 +34,28 @@ WARPED_ROI = [
 ]
 
 # The values control how often a line is changed
-LINE_TOLERANCE = 15
-MAX_LIFETIME = 15
+LINE_TOLERANCE = 17
+MAX_LIFETIME = 10
 
 # The range to calculate the fitted polynoms in
 Y_RANGE = np.arange(0, HEIGHT)
 
+# For Curvature and Center offset
+# MPP = meters per pixel
+MPP_Y = 30 / HEIGHT
+MPP_X = 4 / WIDTH
+
+# The height where the evaluation of the polynom should take place
+EVALUATION_Y = HEIGHT - CAR_HOOD_HEIGHT
+
+DEFAULT_CENTER = WIDTH // 2
+
 # Line Color Filters
-MIN_YELLOW = np.array([50, 75, 200], dtype="uint8")
-MAX_YELLOW = np.array([125, 255, 255], dtype="uint8")
+MIN_YELLOW = np.array([15, 75, 200], dtype="uint8")
+MAX_YELLOW = np.array([25, 255, 255], dtype="uint8")
 
 MIN_WHITE = np.array([0, 0, 220], dtype="uint8")
-MAX_WHITE = np.array([255, 50, 255], dtype="uint8")
+MAX_WHITE = np.array([255, 35, 255], dtype="uint8")
 
 # The color to draw the detected line in
 LANE_COLOR = (0, 128, 0)

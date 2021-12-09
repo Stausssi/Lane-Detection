@@ -153,28 +153,28 @@ class Detector:
 
         return round((location - lane_center) * metersPerPixelX, 2)
 
-    def _segmentImage(self, img):
-        """
-        Segments the image by extracting the ROI for lane detection.
-
-        Args:
-            img (np.ndarray): The image to extract the ROI of
-
-        Returns:
-            np.ndarray: An image only containing the pixels of the ROI
-        """
-
-        mask = np.zeros_like(img, dtype=np.uint8)
-
-        shape = img.shape
-        if len(shape) > 2:
-            channel_count = shape[2]
-            ignore_mask_color = (255,) * channel_count
-        else:
-            ignore_mask_color = 255
-
-        cv.fillPoly(mask, np.array([self.adjustedROI], dtype=np.int32), ignore_mask_color)
-        return cv.bitwise_and(img, mask)
+    # def _segmentImage(self, img):
+    #     """
+    #     Segments the image by extracting the ROI for lane detection.
+    #
+    #     Args:
+    #         img (np.ndarray): The image to extract the ROI of
+    #
+    #     Returns:
+    #         np.ndarray: An image only containing the pixels of the ROI
+    #     """
+    #
+    #     mask = np.zeros_like(img, dtype=np.uint8)
+    #
+    #     shape = img.shape
+    #     if len(shape) > 2:
+    #         channel_count = shape[2]
+    #         ignore_mask_color = (255,) * channel_count
+    #     else:
+    #         ignore_mask_color = 255
+    #
+    #     cv.fillPoly(mask, np.array([self.adjustedROI], dtype=np.int32), ignore_mask_color)
+    #     return cv.bitwise_and(img, mask)
 
     @staticmethod
     def _filterEdges(img):
@@ -354,7 +354,7 @@ class Detector:
             for i in range(2):
                 try:
                     self.currentLinePoints[i].pop(invalidX)
-                except KeyError as e:
+                except KeyError:
                     pass
 
         if len(polyLines) > 0:
@@ -369,7 +369,8 @@ class Detector:
 
     # ---------- [Object Detection] ---------- #
 
-    def detectObjects(self, image):
+    @staticmethod
+    def detectObjects(image):
         """
         Detects other objects (cars, etc.) in the given image.
 

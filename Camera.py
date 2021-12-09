@@ -76,13 +76,14 @@ class Camera:
             if show:
                 cv.destroyAllWindows()
 
-            projectionError, self.distortionMatrix, self.distortion, self.rotationVectors, self.translationVectors = cv.calibrateCamera(
-                objectPoints,
-                imagePoints,
-                gray.shape[::-1],
-                None,
-                None
-            )
+            projectionError, self.distortionMatrix, self.distortion, self.rotationVectors, self.translationVectors = \
+                cv.calibrateCamera(
+                    objectPoints,
+                    imagePoints,
+                    gray.shape[::-1],
+                    None,
+                    None
+                )
 
             return projectionError
         else:
@@ -101,7 +102,9 @@ class Camera:
         """
 
         # The OpenCV method returns the new distortionMatrix and a ROI, which will be unpacked
-        newMatrix, (x, y, h, w) = cv.getOptimalNewCameraMatrix(self.distortionMatrix, self.distortion, img.shape[:2], alpha)
+        newMatrix, (x, y, h, w) = cv.getOptimalNewCameraMatrix(
+            self.distortionMatrix, self.distortion, img.shape[:2], alpha
+        )
 
         # Undistort, crop the image to the ROI and then resize it
         return cv.resize(

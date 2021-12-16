@@ -10,7 +10,7 @@ WIDTH, HEIGHT = IMAGE_SIZE
 SHOW_HIST = False
 
 # Show the filtered image
-SHOW_FILTERED = True
+SHOW_FILTERED = False
 
 # Draw the lines of the Hough detection
 DRAW_HOUGH = False
@@ -34,7 +34,7 @@ WARPED_ROI = [
 ]
 
 # The values control how often a line is changed
-LINE_TOLERANCE = 17
+LINE_TOLERANCE = 15
 MAX_LIFETIME = 10
 
 # The range to calculate the fitted polynoms in

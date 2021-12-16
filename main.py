@@ -23,8 +23,8 @@ def main():
 
     detector = Detector()
 
-    # Whether other objects (cars, etc.) should be detected
-    detectObjects = False
+    # Whether sign should be detected
+    detectSign = False
 
     if videoCapture.isOpened():
         print("Playback started!")
@@ -53,10 +53,10 @@ def main():
                 lane_frame = cv.addWeighted(frame, 1, lane_overlay, 0.5, 1)
 
                 # Also detect objects, if wanted
-                if detectObjects:
-                    object_overlay = detector.detectObjects(frame)
+                if detectSign:
+                    sign_overlay = detector.detectSigns(frame)
 
-                    lane_frame = cv.bitwise_or(frame, object_overlay)
+                    lane_frame = cv.bitwise_or(lane_frame, sign_overlay)
 
                 # Undistort the image
                 lane_frame = camera.undistort(lane_frame)
@@ -78,7 +78,7 @@ def main():
 
                 # Show the video feeds
                 cv.imshow("Video Playback", lane_frame)
-                cv.imshow("Birds-Eye", birdsEye)
+                # cv.imshow("Birds-Eye", birdsEye)
 
                 # Check if escape key or 'q' was pressed
                 key = cv.waitKey(1)
@@ -88,7 +88,7 @@ def main():
                 elif key == ord("p"):
                     cv.waitKey(0)
 
-        print(f"Video finished playing with a mean framerate of {np.around(np.mean(frameRates), 1)}")
+        print(f"Video finished playing with a mean framerate of {np.around(np.mean(frameRates), 1)}.")
     else:
         print("Couldn't start the playback!")
 

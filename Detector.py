@@ -348,47 +348,7 @@ class Detector:
 
         return overlay
 
-    # ---------- [Object Detection] ---------- #
-
-    @staticmethod
-    def detectObjects(image):
-        """
-        Detects objects (signs, cars, etc.) in the given image.
-
-        Args:
-            image (np.ndarray): The image to perform the detection on.
-
-        Returns:
-            np.ndarray: An overlay with boxes for every detected object
-        """
-
-        car_overlay = Detector.detectCars(image)
-        sign_overlay = Detector.detectSigns(image)
-
-        return cv.bitwise_or(car_overlay, sign_overlay)
-
-    @staticmethod
-    def detectCars(image):
-        """
-        Detects cars in the given image.
-
-        Args:
-            image (np.ndarray): The image to analyse and detect cars in
-
-        Returns:
-            np.ndarray: An overlay with the detected cars
-        """
-
-        cars_overlay = np.zeros((HEIGHT, WIDTH, 3), dtype="uint8")
-
-        # cars = CARS_CASCADE.detectMultiScale(image, 1.15, 2)
-        # for (x, y, w, h) in cars:
-        #     cv.rectangle(cars_overlay, (x, y), (x + w, y + h), color=(0, 255, 0), thickness=2)
-
-        return cars_overlay
-
-        # https://techvidvan.com/tutorials/opencv-vehicle-detection-classification-counting/
-        # https://www.pyimagesearch.com/2019/12/02/opencv-vehicle-detection-tracking-and-speed-estimation/
+    # ---------- [Sign Detection] ---------- #
 
     @staticmethod
     def detectSigns(image):

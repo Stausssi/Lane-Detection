@@ -92,7 +92,7 @@ class Camera:
 
     def undistort(self, img, alpha=1):
         """
-        Undistorts a given image.
+        Undistort a given image.
 
         Args:
             img (np.ndarray): The image to undistort.

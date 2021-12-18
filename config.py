@@ -34,8 +34,8 @@ WARPED_ROI = [
 ]
 
 # The values control how often a line is changed
-LINE_TOLERANCE = 15
-MAX_LIFETIME = 10
+LINE_TOLERANCE = 25
+MAX_LIFETIME = 20
 
 # The range to calculate the fitted polynomials in
 Y_RANGE = np.arange(0, HEIGHT)

@@ -27,7 +27,7 @@ class Detector:
         ]
 
         # This list is needed for the curvature calculation
-        self.currentPolynoms: List[Optional[Any]] = [None, None]
+        self.currentPolynomials: List[Optional[Any]] = [None, None]
         self.currentEstimators: List[Optional[np.poly1d]] = [None, None]
 
         self.ignoredRegion = [None, None]
@@ -35,10 +35,10 @@ class Detector:
     @staticmethod
     def __getHist(img):
         """
-        Creates the histogramm of the given image
+        Creates the histogram of the given image
 
         Args:
-            img (np.ndarray): The image to create the histogramm of
+            img (np.ndarray): The image to create the histogram of
 
         Returns:
             None: Nothing
@@ -55,7 +55,7 @@ class Detector:
 
         fig = plt.figure()
         ax = fig.add_subplot(1, 1, 1)
-        ax.set_title("Farbwerthistogramm")
+        ax.set_title("HSV Histogram")
         ax.set_xlim([0, 256])
 
         for i, (col, (label, ranges)) in enumerate(color.items()):
@@ -99,14 +99,14 @@ class Detector:
 
     def getCurvature(self):
         """
-        Calculates the curvature of the line in the real word with the polynoms.
+        Calculates the curvature of the line in the real word with the polynomials.
 
         Returns:
             float: The curvature, or None if no lines were detected
         """
 
         radii = []
-        for fit in self.currentPolynoms:
+        for fit in self.currentPolynomials:
             radii.append(
                 ((1 + (2 * fit[0] * EVALUATION_Y * MPP_Y + fit[1]) ** 2) ** 1.5) / np.absolute(2 * fit[0])
             )
@@ -124,8 +124,8 @@ class Detector:
             float: The offset of the car
         """
 
-        left_poly = self.currentPolynoms[1]
-        right_poly = self.currentPolynoms[0]
+        left_poly = self.currentPolynomials[1]
+        right_poly = self.currentPolynomials[0]
 
         bottom_left = left_poly[0] * HEIGHT ** 2 + left_poly[1] * HEIGHT + left_poly[2]
         bottom_right = right_poly[0] * HEIGHT ** 2 + right_poly[1] * HEIGHT + right_poly[2]
@@ -133,29 +133,6 @@ class Detector:
         lane_center = (bottom_right - bottom_left) / 2 + bottom_left
 
         return round((DEFAULT_CENTER - lane_center) * MPP_X, 2)
-
-    # def _segmentImage(self, img):
-    #     """
-    #     Segments the image by extracting the ROI for lane detection.
-    #
-    #     Args:
-    #         img (np.ndarray): The image to extract the ROI of
-    #
-    #     Returns:
-    #         np.ndarray: An image only containing the pixels of the ROI
-    #     """
-    #
-    #     mask = np.zeros_like(img, dtype=np.uint8)
-    #
-    #     shape = img.shape
-    #     if len(shape) > 2:
-    #         channel_count = shape[2]
-    #         ignore_mask_color = (255,) * channel_count
-    #     else:
-    #         ignore_mask_color = 255
-    #
-    #     cv.fillPoly(mask, np.array([self.adjustedROI], dtype=np.int32), ignore_mask_color)
-    #     return cv.bitwise_and(img, mask)
 
     @staticmethod
     def _filterEdges(img):
@@ -199,7 +176,7 @@ class Detector:
         image.
 
         Args:
-            img (np.ndarray): The prefiltered, segmented and grayscaled image.
+            img (np.ndarray): The prefiltered, segmented and gray-scaled image.
 
         Returns:
             np.ndarray: The lane overlay.
@@ -224,59 +201,49 @@ class Detector:
                     x1, y1 = (line[0], line[1])
                     x2, y2 = (line[2], line[3])
 
-                    # Calculate the angle of the line to the image
-                    lineAngle = cv.fastAtan2(y2 - y1, x2 - x1)
+                    # Draw detected line, if specified
+                    if DRAW_HOUGH:
+                        cv.line(
+                            overlay,
+                            (x1, y1),
+                            (x2, y2),
+                            (0, 0, 255),
+                            thickness=10
+                        )
 
-                    # Only vertical lines are allowed.
-                    # They have an angle between 15 and 345 degrees.
-                    # Other lines are considered as horizontal.
-                    if 0 < lineAngle < 360:
-                        # Draw detected line, if specified
-                        if DRAW_HOUGH:
-                            cv.line(
-                                overlay,
-                                (x1, y1),
-                                (x2, y2),
-                                (0, 0, 255),
-                                thickness=10
-                            )
+                    # Point is from the left line, if the angle is bigger than 270 degrees
+                    isLeftLine = int(any([x < WIDTH // 2 for x in [x1, x2]]))
 
-                        # Point is from the left line, if the angle is bigger than 270 degrees
-                        isLeftLine = int(any([x < WIDTH // 2 for x in [x1, x2]]))
-                        # TODO: Sliding window ?
+                    # Compare current point to existing point, if exists
+                    # Do this for every line (left and right)
+                    for i in range(2):
+                        y = int(line[i * 2 + 1])
+                        newX = int(line[i * 2])
 
-                        # Compare current point to existing point, if exists
-                        # Do this for every line (left and right)
-                        for i in range(2):
-                            y = int(line[i * 2 + 1])
-                            newX = int(line[i * 2])
+                        # Get the current point for that y-coordinate
+                        currentPoint = self.currentLinePoints[isLeftLine].get(y)
 
-                            # Get the current point for that y-coordinate
-                            currentPoint = self.currentLinePoints[isLeftLine].get(y)
+                        # Save the new value, if there is no current point, or ...
+                        saveNewValue = currentPoint is None
 
-                            # Save the new value, if there is no current point, or ...
-                            saveNewValue = currentPoint is None
+                        if currentPoint is not None:
+                            currentX = currentPoint.getX()
+                            currentLifetime = currentPoint.getLifetime()
 
-                            if currentPoint is not None:
-                                currentX = currentPoint.getX()
-                                currentLifetime = currentPoint.getLifetime()
+                            xDistance = abs(newX - currentX)
 
-                                xDistance = abs(newX - currentX)
+                            # ... if the euclidean distance is bigger than the tolerance, or the previous point
+                            # exceeded the lifetime
+                            saveNewValue = xDistance > LINE_TOLERANCE or currentLifetime >= MAX_LIFETIME
+                            if xDistance < LINE_TOLERANCE:
+                                currentPoint.decreaseLifetime()
 
-                                # ... if the euclidean distance is bigger than the tolerance, or the previous point
-                                # exceeded the lifetime
-                                saveNewValue = xDistance > LINE_TOLERANCE or currentLifetime >= MAX_LIFETIME
-                                if xDistance < LINE_TOLERANCE:
-                                    currentPoint.decreaseLifetime()
-
-                                # newX = (currentX + 2 * newX) // 3
-
-                            if saveNewValue:
-                                numUpdatedPoints += 1
-                                # Save the value
-                                self.currentLinePoints[isLeftLine].update({
-                                    y: LinePoint(newX)
-                                })
+                        if saveNewValue:
+                            numUpdatedPoints += 1
+                            # Save the value
+                            self.currentLinePoints[isLeftLine].update({
+                                y: LinePoint(newX)
+                            })
         else:
             print("too much white")
 
@@ -314,7 +281,7 @@ class Detector:
                     estimator = np.poly1d(fittedPoly)
 
                     # Save the polynom
-                    self.currentPolynoms[index] = fittedPoly
+                    self.currentPolynomials[index] = fittedPoly
                     self.currentEstimators[index] = estimator
                 else:
                     estimator = self.currentEstimators[index]

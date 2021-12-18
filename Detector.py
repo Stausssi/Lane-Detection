@@ -213,7 +213,7 @@ class Detector:
         # Check if less than a third of the image is white
         if np.sum(img > 0) < WIDTH * HEIGHT // 3:
             # Use the performance variant of HoughLines
-            lines = cv.HoughLinesP(img, 1, np.pi / 180, 150, maxLineGap=50, minLineLength=50)
+            lines = cv.HoughLinesP(img, 1, np.pi / 180, 100)
 
             if lines is not None:
                 # Go over every detected hough line
@@ -230,7 +230,7 @@ class Detector:
                     # Only vertical lines are allowed.
                     # They have an angle between 15 and 345 degrees.
                     # Other lines are considered as horizontal.
-                    if 15 < lineAngle < 345:
+                    if 0 < lineAngle < 360:
                         # Draw detected line, if specified
                         if DRAW_HOUGH:
                             cv.line(

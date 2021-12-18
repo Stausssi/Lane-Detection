@@ -10,26 +10,26 @@ WIDTH, HEIGHT = IMAGE_SIZE
 SHOW_HIST = False
 
 # Show the filtered image
-SHOW_FILTERED = False
+SHOW_FILTERED = True
 
 # Draw the lines of the Hough detection
 DRAW_HOUGH = False
 
 # The ROI of the lane detection and camera warp
-CAR_HOOD_HEIGHT = 60
+CAR_HOOD_HEIGHT = 0
 PADDING = 100
 ROI = [
-    [.555 * WIDTH, 0.63 * HEIGHT],  # Top right
+    [.55 * WIDTH, 0.63 * HEIGHT],  # Top right
     [WIDTH - PADDING, HEIGHT - CAR_HOOD_HEIGHT],  # Bottom right
-    [PADDING * 2, HEIGHT - CAR_HOOD_HEIGHT],  # Bottom left
+    [PADDING * 1.5, HEIGHT - CAR_HOOD_HEIGHT],  # Bottom left
     [.45 * WIDTH, 0.63 * HEIGHT],  # Top left
 ]
 
 # The destination ROI of the birds eye view
 WARPED_ROI = [
-    [WIDTH - PADDING, 0],  # Top right
-    [WIDTH - PADDING, HEIGHT],  # Bottom right
-    [PADDING, HEIGHT],  # bottom left
+    [WIDTH - PADDING * 2, 0],  # Top right
+    [WIDTH - PADDING * 2, HEIGHT],  # Bottom right
+    [PADDING * 1.5, HEIGHT],  # bottom left
     [PADDING, 0],  # Top left
 ]
 
@@ -37,7 +37,7 @@ WARPED_ROI = [
 LINE_TOLERANCE = 15
 MAX_LIFETIME = 10
 
-# The range to calculate the fitted polynoms in
+# The range to calculate the fitted polynomials in
 Y_RANGE = np.arange(0, HEIGHT)
 
 # For Curvature and Center offset
@@ -51,11 +51,11 @@ EVALUATION_Y = HEIGHT - CAR_HOOD_HEIGHT
 DEFAULT_CENTER = WIDTH // 2
 
 # Line Color Filters
-MIN_YELLOW = np.array([15, 75, 200], dtype="uint8")
+MIN_YELLOW = np.array([15, 75, 150], dtype="uint8")
 MAX_YELLOW = np.array([25, 255, 255], dtype="uint8")
 
 MIN_WHITE = np.array([0, 0, 220], dtype="uint8")
-MAX_WHITE = np.array([255, 35, 255], dtype="uint8")
+MAX_WHITE = np.array([255, 100, 255], dtype="uint8")
 
 # The color to draw the detected line in
 LANE_COLOR = (0, 128, 0)

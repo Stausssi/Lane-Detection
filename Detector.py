@@ -12,7 +12,6 @@ class Detector:
     def __init__(self):
         # This is a list, which contains a dict for each line (right/left)
         # The dict itself contains points for the x and y coordinates of the points
-        # Default values are the ROI edges
         self.currentLinePoints: List[Dict[int, LinePoint]] = [
             # Right line
             {},
@@ -98,9 +97,10 @@ class Detector:
 
         radii = []
         for fit in self.currentPolynomials:
-            radii.append(
-                ((1 + (2 * fit[0] * EVALUATION_Y * MPP_Y + fit[1]) ** 2) ** 1.5) / np.absolute(2 * fit[0])
-            )
+            if fit is not None:
+                radii.append(
+                    ((1 + (2 * fit[0] * EVALUATION_Y * MPP_Y + fit[1]) ** 2) ** 1.5) / np.absolute(2 * fit[0])
+                )
 
         if len(radii) > 0:
             return np.mean(radii)
@@ -118,12 +118,15 @@ class Detector:
         left_poly = self.currentPolynomials[1]
         right_poly = self.currentPolynomials[0]
 
-        bottom_left = left_poly[0] * HEIGHT ** 2 + left_poly[1] * HEIGHT + left_poly[2]
-        bottom_right = right_poly[0] * HEIGHT ** 2 + right_poly[1] * HEIGHT + right_poly[2]
+        if left_poly is not None and right_poly is not None:
+            bottom_left = left_poly[0] * HEIGHT ** 2 + left_poly[1] * HEIGHT + left_poly[2]
+            bottom_right = right_poly[0] * HEIGHT ** 2 + right_poly[1] * HEIGHT + right_poly[2]
 
-        lane_center = (bottom_right - bottom_left) / 2 + bottom_left
+            lane_center = (bottom_right - bottom_left) / 2 + bottom_left
 
-        return round((DEFAULT_CENTER - lane_center) * MPP_X, 2)
+            return round((DEFAULT_CENTER - lane_center) * MPP_X, 2)
+        else:
+            return 0
 
     @staticmethod
     def _filterColor(img):
@@ -254,11 +257,12 @@ class Detector:
             else:
                 polyLine = self.currentPolyLines[index]
 
-            if index == 0:
-                polyLines.extend(polyLine)
-            else:
-                # Flip to ensure, that the filled poly is solid and not crossed
-                polyLines.extend(np.flipud(polyLine))
+            if polyLine is not None:
+                if index == 0:
+                    polyLines.extend(polyLine)
+                else:
+                    # Flip to ensure, that the filled poly is solid and not crossed
+                    polyLines.extend(np.flipud(polyLine))
 
         if len(polyLines) > 0:
             # Fill the area between the lines
@@ -291,7 +295,7 @@ class Detector:
         # Fill ROI with black to prevent lane markings to interfere
         cv.fillPoly(
             image,
-            np.array([ROI], dtype=np.int32),
+            np.array([DEFAULT_ROI], dtype=np.int32),
             (0, 0, 0)
         )
         cv.rectangle(

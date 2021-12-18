@@ -1,13 +1,17 @@
 import glob
 from timeit import default_timer as timer
 import cv2 as cv
+import numpy as np
+
 from Camera import Camera
 from Detector import Detector
-from config import *
+from config import DEFAULT_ROI, KITTI_ROI
 from util import displayTextOnImage
 
 
-def detectionPipeline(detector, camera, frame, detectSigns, videoFramerate=-1, keyDelay=1, showBirdseye=False):
+def detectionPipeline(
+        detector, camera, frame, detectSigns, videoFramerate=-1, keyDelay=1, showBirdseye=False, isKITTI=False
+):
     """
     The main pipeline an image will go through to detect lines.
 
@@ -19,6 +23,7 @@ def detectionPipeline(detector, camera, frame, detectSigns, videoFramerate=-1, k
         videoFramerate (int): The framerate of the video-playback (if any)
         keyDelay (int): The delay cv.waitKey() should wait for. 0 means indefinite
         showBirdseye (bool): Whether the birds-eye perspective should be shown
+        isKITTI (bool): Whether the image is from KITTI -> No undistort
 
     Returns:
         tuple[bool, int]: A tuple containing whether the playback should be exited and the current frame rate
@@ -48,11 +53,13 @@ def detectionPipeline(detector, camera, frame, detectSigns, videoFramerate=-1, k
         lane_frame = cv.bitwise_or(lane_frame, sign_overlay)
 
     # Undistort the image
-    lane_frame = camera.undistort(lane_frame)
+    if not isKITTI:
+        lane_frame = camera.undistort(lane_frame)
 
+    # Calculate the Framerate if this is a video playback
     frameRate = -1
     if videoFramerate > 0:
-        # Calculate the Framerate
+        # Grab the time the frame took
         frameTime = timer() - startTimer
         frameRate = int(1 / frameTime)
         displayTextOnImage(lane_frame, f"FPS: {frameRate} / {videoFramerate}", (5, 15))
@@ -91,13 +98,13 @@ def main():
     # Whether the video playback should be shown
     useVideo = True
 
-    # Whether the udacity images should be shown
+    # Whether the Udacity images should be shown
     useImages = True
 
     # Whether the KITTI images should be shown
     # KiTTI should use a different perspective transform
     # Also, arrows and other line markings should be filtered
-    useKITTI = False
+    useKITTI = True
 
     # Whether sign should be detected
     detectSigns = False
@@ -147,12 +154,19 @@ def main():
         for file in imageFiles:
             print(f"Showing {file}...")
 
+            # Change ROI for KITTI
+            isKITTI = "KITTI" in file
+            if isKITTI:
+                camera.updateROI(KITTI_ROI)
+            else:
+                camera.updateROI(DEFAULT_ROI)
+
             # Create a new detector to reset previous lanes
             detector = Detector()
 
             image = cv.imread(file)
 
-            if not detectionPipeline(detector, camera, image, True, keyDelay=0)[0]:
+            if not detectionPipeline(detector, camera, image, True, keyDelay=0, isKITTI=isKITTI)[0]:
                 break
 
     cv.destroyAllWindows()

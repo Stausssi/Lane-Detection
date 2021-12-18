@@ -13,14 +13,10 @@ class Camera:
         self.rotationVectors = None
         self.translationVectors = None
 
-        # Create the rectangles (copied from the script)
-        src_rect = np.float32(ROI)
-
-        dst_rect = np.float32(WARPED_ROI)
-
         # Create the transformation matrix
-        self.transformationMatrix = cv.getPerspectiveTransform(src_rect, dst_rect)
-        self.inverseTransformationMatrix = cv.getPerspectiveTransform(dst_rect, src_rect)
+        self.transformationMatrix = None
+        self.inverseTransformationMatrix = None
+        self.updateROI(DEFAULT_ROI)
 
     def calibrate(self, images, boardSize=(6, 9), show=False) -> float:
         """
@@ -112,6 +108,22 @@ class Camera:
             cv.undistort(img, self.distortionMatrix, self.distortion, None, newMatrix)[y:h + y // 4, x:w - x // 4],
             IMAGE_SIZE
         )
+
+    def updateROI(self, src_rect, dst_rect=WARPED_ROI):
+        """
+        Updates the source ROI for the birds eye transform.
+
+        Args:
+            src_rect:
+            dst_rect
+
+        Returns:
+            None: Nothing
+        """
+
+        # Create the transformation matrix
+        self.transformationMatrix = cv.getPerspectiveTransform(src_rect, dst_rect)
+        self.inverseTransformationMatrix = cv.getPerspectiveTransform(dst_rect, src_rect)
 
     def birdsEyeView(self, img):
         """

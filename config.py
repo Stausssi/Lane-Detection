@@ -13,22 +13,28 @@ SHOW_HIST = False
 SHOW_FILTERED = False
 
 # The ROI of the lane detection and camera warp
-CAR_HOOD_HEIGHT = 0
 PADDING = 100
-ROI = [
+DEFAULT_ROI = np.float32([
     [.545 * WIDTH, 0.63 * HEIGHT],  # Top right
-    [WIDTH - PADDING, HEIGHT - CAR_HOOD_HEIGHT],  # Bottom right
-    [PADDING * 1.5, HEIGHT - CAR_HOOD_HEIGHT],  # Bottom left
+    [WIDTH - PADDING, HEIGHT],  # Bottom right
+    [PADDING * 1.5, HEIGHT],  # Bottom left
     [.455 * WIDTH, 0.63 * HEIGHT],  # Top left
-]
+])
+
+KITTI_ROI = np.float32([
+    [.61 * WIDTH, 0.48 * HEIGHT],  # Top right
+    [WIDTH - PADDING // 2, HEIGHT],  # Bottom right
+    [PADDING // 2, HEIGHT],  # Bottom left
+    [.466 * WIDTH, 0.48 * HEIGHT],  # Top left
+])
 
 # The destination ROI of the birds eye view
-WARPED_ROI = [
+WARPED_ROI = np.float32([
     [WIDTH - PADDING * 2, 0],  # Top right
     [WIDTH - PADDING * 2, HEIGHT],  # Bottom right
     [PADDING * 1.5, HEIGHT],  # bottom left
     [PADDING * 1.5, 0],  # Top left
-]
+])
 
 # The values control how often a line is changed
 LINE_TOLERANCE = 15
@@ -44,7 +50,7 @@ MPP_Y = 30 / HEIGHT
 MPP_X = 4 / WIDTH
 
 # The height where the evaluation of the polynom should take place
-EVALUATION_Y = HEIGHT - CAR_HOOD_HEIGHT
+EVALUATION_Y = HEIGHT
 
 DEFAULT_CENTER = WIDTH // 2
 

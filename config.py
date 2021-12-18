@@ -10,19 +10,16 @@ WIDTH, HEIGHT = IMAGE_SIZE
 SHOW_HIST = False
 
 # Show the filtered image
-SHOW_FILTERED = True
-
-# Draw the lines of the Hough detection
-DRAW_HOUGH = False
+SHOW_FILTERED = False
 
 # The ROI of the lane detection and camera warp
 CAR_HOOD_HEIGHT = 0
 PADDING = 100
 ROI = [
-    [.55 * WIDTH, 0.63 * HEIGHT],  # Top right
+    [.545 * WIDTH, 0.63 * HEIGHT],  # Top right
     [WIDTH - PADDING, HEIGHT - CAR_HOOD_HEIGHT],  # Bottom right
     [PADDING * 1.5, HEIGHT - CAR_HOOD_HEIGHT],  # Bottom left
-    [.45 * WIDTH, 0.63 * HEIGHT],  # Top left
+    [.455 * WIDTH, 0.63 * HEIGHT],  # Top left
 ]
 
 # The destination ROI of the birds eye view
@@ -30,12 +27,13 @@ WARPED_ROI = [
     [WIDTH - PADDING * 2, 0],  # Top right
     [WIDTH - PADDING * 2, HEIGHT],  # Bottom right
     [PADDING * 1.5, HEIGHT],  # bottom left
-    [PADDING, 0],  # Top left
+    [PADDING * 1.5, 0],  # Top left
 ]
 
 # The values control how often a line is changed
-LINE_TOLERANCE = 25
-MAX_LIFETIME = 20
+LINE_TOLERANCE = 15
+MAX_LIFETIME = 10
+TOTAL_POINTS_DIVIDER = 10
 
 # The range to calculate the fitted polynomials in
 Y_RANGE = np.arange(0, HEIGHT)
@@ -59,9 +57,6 @@ MAX_WHITE = np.array([255, 100, 255], dtype="uint8")
 
 # The color to draw the detected line in
 LANE_COLOR = (0, 128, 0)
-
-# Car Detection
-CARS_CASCADE = cv2.CascadeClassifier('cars.xml')
 
 # Road Sign Detection
 MIN_GREEN_SIGN = np.array([70, 75, 35], dtype="uint8")

@@ -1,6 +1,9 @@
 import cv2 as cv
 
 
+from config import MAX_LIFETIME
+
+
 class LinePoint:
     """
     Represents a point
@@ -10,7 +13,7 @@ class LinePoint:
     """
     def __init__(self, x):
         self._x = x
-        self._lifetime = 0
+        self._lifetime = MAX_LIFETIME
 
     def getLifetime(self):
         """

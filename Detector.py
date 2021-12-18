@@ -1,4 +1,4 @@
-from typing import List, Dict, Optional, Any
+from typing import List, Dict, Optional, Any, Tuple
 
 import cv2 as cv
 import numpy as np
@@ -15,22 +15,14 @@ class Detector:
         # Default values are the ROI edges
         self.currentLinePoints: List[Dict[int, LinePoint]] = [
             # Right line
-            {
-                int(ROI[0][1]): LinePoint(ROI[0][0]),
-                int(ROI[1][1]): LinePoint(ROI[1][0])
-            },
+            {},
             # Left line
-            {
-                int(ROI[2][1]): LinePoint(ROI[2][0]),
-                int(ROI[3][1]): LinePoint(ROI[3][0])
-            }
+            {}
         ]
 
         # This list is needed for the curvature calculation
         self.currentPolynomials: List[Optional[Any]] = [None, None]
-        self.currentEstimators: List[Optional[np.poly1d]] = [None, None]
-
-        self.ignoredRegion = [None, None]
+        self.currentPolyLines: List[Optional[List[Tuple[int, int]]]] = [None, None]
 
     @staticmethod
     def __getHist(img):
@@ -85,14 +77,13 @@ class Detector:
             np.ndarray: The image with lines drawn onto it
         """
 
-        if SHOW_HIST:
-            cv.imshow("Hist", self.__getHist(img))
+        # Show histogram if wanted
+        SHOW_HIST and cv.imshow("Hist", self.__getHist(img))
 
         # Filtering by color is more than enough for the birds eye view
         color = self._filterColor(img)
 
-        if SHOW_FILTERED:
-            cv.imshow("Combined", color)
+        SHOW_FILTERED and cv.imshow("Filtered", color)
 
         # Perform Hough Line detection and return the overlay the method creates
         return self._houghDetection(color)
@@ -135,21 +126,6 @@ class Detector:
         return round((DEFAULT_CENTER - lane_center) * MPP_X, 2)
 
     @staticmethod
-    def _filterEdges(img):
-        """
-        Uses canny to filter edges out of the image.
-
-        Args:
-            img (np.ndarray): The image to filter the edges of
-
-        Returns:
-            np.ndarray: The filtered image
-        """
-
-        # Perform canny
-        return cv.Canny(cv.GaussianBlur(img, (5, 5), 0), 50, 150)
-
-    @staticmethod
     def _filterColor(img):
         """
         Filters yellow and white markings out of the given image.
@@ -190,7 +166,7 @@ class Detector:
         # Check if less than a third of the image is white
         if np.sum(img > 0) < WIDTH * HEIGHT // 3:
             # Use the performance variant of HoughLines
-            lines = cv.HoughLinesP(img, 1, np.pi / 180, 100)
+            lines = cv.HoughLinesP(img, 1, np.pi / 180, 150, minLineLength=50, maxLineGap=50)
 
             if lines is not None:
                 # Go over every detected hough line
@@ -201,109 +177,88 @@ class Detector:
                     x1, y1 = (line[0], line[1])
                     x2, y2 = (line[2], line[3])
 
-                    # Draw detected line, if specified
-                    if DRAW_HOUGH:
-                        cv.line(
-                            overlay,
-                            (x1, y1),
-                            (x2, y2),
-                            (0, 0, 255),
-                            thickness=10
-                        )
-
-                    # Point is from the left line, if the angle is bigger than 270 degrees
-                    isLeftLine = int(any([x < WIDTH // 2 for x in [x1, x2]]))
+                    # Point is from the left line, if it's left from the middle
+                    isLeftLine = int(any([x < DEFAULT_CENTER for x in [x1, x2]]))
 
                     # Compare current point to existing point, if exists
-                    # Do this for every line (left and right)
-                    for i in range(2):
-                        y = int(line[i * 2 + 1])
-                        newX = int(line[i * 2])
-
+                    # Do this for every point (start and end)
+                    for x, y in [(x1, y1), (x2, y2)]:
                         # Get the current point for that y-coordinate
                         currentPoint = self.currentLinePoints[isLeftLine].get(y)
 
                         # Save the new value, if there is no current point, or ...
                         saveNewValue = currentPoint is None
 
+                        pointScore = 1
                         if currentPoint is not None:
                             currentX = currentPoint.getX()
                             currentLifetime = currentPoint.getLifetime()
 
-                            xDistance = abs(newX - currentX)
+                            xDistance = abs(x - currentX)
+                            pointScore = max(x, currentX) / (min(x, currentX) + 1)
 
                             # ... if the euclidean distance is bigger than the tolerance, or the previous point
                             # exceeded the lifetime
-                            saveNewValue = xDistance > LINE_TOLERANCE or currentLifetime >= MAX_LIFETIME
+                            saveNewValue = xDistance > LINE_TOLERANCE or currentLifetime > 0
                             if xDistance < LINE_TOLERANCE:
-                                currentPoint.decreaseLifetime()
+                                currentPoint.increaseLifetime()
 
                         if saveNewValue:
-                            numUpdatedPoints += 1
+                            numUpdatedPoints += pointScore
                             # Save the value
                             self.currentLinePoints[isLeftLine].update({
-                                y: LinePoint(newX)
+                                y: LinePoint(x)
                             })
         else:
             print("too much white")
 
         totalPoints = len(self.currentLinePoints[0]) + len(self.currentLinePoints[1])
 
-        # Create lists for storing values
-        invalidPoints = []
+        # Create lists for storing the lines
         polyLines = []
 
         # Go over each line
         for index, line in enumerate(self.currentLinePoints):
+            # Estimate a new polynomial if many points changed
+            fitNewPoly = numUpdatedPoints > totalPoints / TOTAL_POINTS_DIVIDER or self.currentPolyLines[index] is None
+
+            # Store points for the new polynomial
             polyPointsY = []
             polyPointsX = []
 
             # Go over every point in the line
             for y, linePoint in line.items():
-                linePoint.increaseLifetime()
+                linePoint.decreaseLifetime()
 
-                if linePoint.getLifetime() >= MAX_LIFETIME:
-                    # Schedule the point for deletion
-                    invalidPoints.append(y)
-                else:
+                if linePoint.getLifetime() > 0 and fitNewPoly:
                     # Schedule the point for the poly fit
                     polyPointsY.append(y)
                     polyPointsX.append(linePoint.getX())
 
-            if len(polyPointsY) > 0:
-                if numUpdatedPoints > totalPoints / 10 or self.currentEstimators[index] is None:
-                    # Estimate the polynomial function if many points changed
-                    fittedPoly = np.polyfit(
-                        polyPointsY,
-                        polyPointsX,
-                        2
-                    )
-                    estimator = np.poly1d(fittedPoly)
-
-                    # Save the polynom
-                    self.currentPolynomials[index] = fittedPoly
-                    self.currentEstimators[index] = estimator
-                else:
-                    estimator = self.currentEstimators[index]
+            if fitNewPoly and len(polyPointsY) > 0:
+                fittedPoly = np.polyfit(
+                    polyPointsY,
+                    polyPointsX,
+                    2
+                )
+                estimator = np.poly1d(fittedPoly)
 
                 # Get all points via the estimator
                 polyLine = np.int32([
                     estimator(Y_RANGE), Y_RANGE
                 ]).T
 
-                if index == 0:
-                    polyLines.extend(polyLine)
-                else:
-                    # Flip to ensure, that the filled poly is solid and not crossed
-                    polyLines.extend(np.flipud(polyLine))
+                # Save the polynomial
+                self.currentPolynomials[index] = fittedPoly
+                self.currentPolyLines[index] = polyLine
+            else:
+                polyLine = self.currentPolyLines[index]
 
-        # Remove invalid points from the dict
-        for invalidX in invalidPoints:
-            for i in range(2):
-                try:
-                    self.currentLinePoints[i].pop(invalidX)
-                except KeyError:
-                    pass
+            if index == 0:
+                polyLines.extend(polyLine)
+            else:
+                # Flip to ensure, that the filled poly is solid and not crossed
+                polyLines.extend(np.flipud(polyLine))
 
         if len(polyLines) > 0:
             # Fill the area between the lines

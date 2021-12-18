@@ -133,7 +133,7 @@ def main():
         videoCapture.release()
 
     if useImages or useKITTI:
-        print("Starting single images")
+        print("Starting single image detection")
 
         # Import the wanted images
         imageFiles = []
@@ -152,7 +152,7 @@ def main():
 
             image = cv.imread(file)
 
-            if not detectionPipeline(detector, camera, image, True, keyDelay=0, showBirdseye=True)[0]:
+            if not detectionPipeline(detector, camera, image, True, keyDelay=0)[0]:
                 break
 
     cv.destroyAllWindows()

@@ -62,7 +62,7 @@ def detectionPipeline(
     if videoFramerate > 0:
         # Grab the time the frame took
         frameTime = timer() - startTimer
-        frameRate = int(1 / frameTime)
+        frameRate = int(round(1 / frameTime, 0))
         displayTextOnImage(lane_frame, f"FPS: {frameRate} / {videoFramerate}", (5, 15))
 
     # Display the line curvature

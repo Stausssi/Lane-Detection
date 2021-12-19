@@ -1,20 +1,26 @@
 import os
 
 import numpy as np
+import cv2 as cv
 
 from config import *
 
 
 class Camera:
     def __init__(self):
-        self.matrix = None
+        self.distortionMatrix = None
         self.distortion = None
         self.rotationVectors = None
         self.translationVectors = None
 
+        # Create the transformation matrix
+        self.transformationMatrix = None
+        self.inverseTransformationMatrix = None
+        self.updateROI(DEFAULT_ROI)
+
     def calibrate(self, images, boardSize=(6, 9), show=False) -> float:
         """
-        This method calibrates the camera and sets the internal values.
+        Calibrates the camera and sets the internal values.
 
         Args:
             images (list[str]): A list of strings, which represent a path to a calibration image.
@@ -67,13 +73,14 @@ class Camera:
             if show:
                 cv.destroyAllWindows()
 
-            projectionError, self.matrix, self.distortion, self.rotationVectors, self.translationVectors = cv.calibrateCamera(
-                objectPoints,
-                imagePoints,
-                gray.shape[::-1],
-                None,
-                None
-            )
+            projectionError, self.distortionMatrix, self.distortion, self.rotationVectors, self.translationVectors = \
+                cv.calibrateCamera(
+                    objectPoints,
+                    imagePoints,
+                    gray.shape[::-1],
+                    None,
+                    None
+                )
 
             return projectionError
         else:
@@ -81,7 +88,7 @@ class Camera:
 
     def undistort(self, img, alpha=1):
         """
-        This method undistorts a given image.
+        Undistort a given image.
 
         Args:
             img (np.ndarray): The image to undistort.
@@ -91,19 +98,36 @@ class Camera:
             img: The undistorted image.
         """
 
-        # The OpenCV method returns the new matrix and a ROI, which will be unpacked
-        newMatrix, (x, y, h, w) = cv.getOptimalNewCameraMatrix(self.matrix, self.distortion, img.shape[:2], alpha)
+        # The OpenCV method returns the new distortionMatrix and a ROI, which will be unpacked
+        newMatrix, (x, y, h, w) = cv.getOptimalNewCameraMatrix(
+            self.distortionMatrix, self.distortion, img.shape[:2], alpha
+        )
 
         # Undistort, crop the image to the ROI and then resize it
         return cv.resize(
-            cv.undistort(img, self.matrix, self.distortion, None, newMatrix)[y:h + y // 4, x:w - x // 4],
+            cv.undistort(img, self.distortionMatrix, self.distortion, None, newMatrix)[y:h + y // 4, x:w - x // 4],
             IMAGE_SIZE
         )
 
-    @staticmethod
-    def birdsEyeView(img):
+    def updateROI(self, src_rect, dst_rect=WARPED_ROI):
         """
-        This method transform an image into the birds-eye view.
+        Updates the source ROI for the birds eye transform.
+
+        Args:
+            src_rect:
+            dst_rect
+
+        Returns:
+            None: Nothing
+        """
+
+        # Create the transformation matrix
+        self.transformationMatrix = cv.getPerspectiveTransform(src_rect, dst_rect)
+        self.inverseTransformationMatrix = cv.getPerspectiveTransform(dst_rect, src_rect)
+
+    def birdsEyeView(self, img):
+        """
+        Transform an image into the birds-eye view.
 
         Args:
             img (np.ndarray): The image to transform
@@ -112,13 +136,17 @@ class Camera:
             img: An image in birds eye view
         """
 
-        # Create the rectangles (copied from the script)
-        # TODO: Adjust to camera distortion
-        src_rect = np.float32(ROI)
+        return cv.warpPerspective(img, self.transformationMatrix, IMAGE_SIZE)
 
-        dst_rect = np.float32(WARPED_ROI)
+    def normalView(self, img):
+        """
+        Re-transforms an image from birds eye in regular.
 
-        # Create the transformation matrix
-        matrix = cv.getPerspectiveTransform(src_rect, dst_rect)
+        Args:
+            img (np.ndarray): The image to transform
 
-        return cv.warpPerspective(img, matrix, IMAGE_SIZE)
+        Returns:
+            np.ndarray: The transformed image
+        """
+
+        return cv.warpPerspective(img, self.inverseTransformationMatrix, IMAGE_SIZE)

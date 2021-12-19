@@ -1,5 +1,6 @@
-from typing import List, Dict, Optional, Any
+from typing import List, Dict, Optional, Any, Tuple
 
+import cv2 as cv
 import numpy as np
 from matplotlib import pyplot as plt
 
@@ -11,39 +12,31 @@ class Detector:
     def __init__(self):
         # This is a list, which contains a dict for each line (right/left)
         # The dict itself contains points for the x and y coordinates of the points
-        # Default values are the ROI edges
         self.currentLinePoints: List[Dict[int, LinePoint]] = [
             # Right line
-            {
-                int(ROI[0][1]): LinePoint(ROI[0][0]),
-                int(ROI[1][1]): LinePoint(ROI[1][0])
-            },
+            {},
             # Left line
-            {
-                int(ROI[2][1]): LinePoint(ROI[2][0]),
-                int(ROI[3][1]): LinePoint(ROI[3][0])
-            }
+            {}
         ]
 
         # This list is needed for the curvature calculation
-        self.currentPolynoms: List[Optional[Any]] = [None, None]
-
-        self.adjustedROI = ROI
+        self.currentPolynomials: List[Optional[Any]] = [None, None]
+        self.currentPolyLines: List[Optional[List[Tuple[int, int]]]] = [None, None]
 
     @staticmethod
     def __getHist(img):
         """
-        Creates the histogramm of the given image
+        Creates the histogram of the given image
 
         Args:
-            img (np.ndarray): The image to create the histogramm of
+            img (np.ndarray): The image to create the histogram of
 
         Returns:
             None: Nothing
         """
 
         # Convert the image to HSV
-        img = cv.cvtColor(img, cv.COLOR_RGB2HSV)
+        img = cv.cvtColor(img, cv.COLOR_BGR2HSV)
 
         color = {
             "b": ("Hue", [1, 256]),
@@ -53,7 +46,7 @@ class Detector:
 
         fig = plt.figure()
         ax = fig.add_subplot(1, 1, 1)
-        ax.set_title("Farbwerthistogramm")
+        ax.set_title("HSV Histogram")
         ax.set_xlim([0, 256])
 
         for i, (col, (label, ranges)) in enumerate(color.items()):
@@ -83,106 +76,62 @@ class Detector:
             np.ndarray: The image with lines drawn onto it
         """
 
-        # First, segment the image
-        img = self._segmentImage(img)
+        # Show histogram if wanted
+        SHOW_HIST and cv.imshow("Hist", self.__getHist(img))
 
-        if SHOW_SEGMENTED:
-            cv.imshow("Segmented", img)
-
-        if SHOW_HIST:
-            cv.imshow("Hist", self.__getHist(img))
-
-        # Then. filter by color
+        # Filtering by color is more than enough for the birds eye view
         color = self._filterColor(img)
 
-        # And finally filter by edges (Canny)
-        edges = self._filterEdges(img)
-
-        # Combine the pictures
-        combined = cv.bitwise_or(color, edges)
-
-        if SHOW_COMBINED:
-            cv.imshow("Combined", combined)
+        SHOW_FILTERED and cv.imshow("Filtered", color)
 
         # Perform Hough Line detection and return the overlay the method creates
-        return self._houghDetection(combined)
+        return self._houghDetection(color)
 
     def getCurvature(self):
         """
-        Calculates the curvature of the line in the real word with the polynoms.
+        Calculates the curvature of the line in the real word with the polynomials.
 
         Returns:
             float: The curvature, or None if no lines were detected
         """
 
-        meterPerPixelY = 30 / HEIGHT
-
-        # The height where the evaluation of the polynom should take place
-        evaluationY = HEIGHT - CAR_HOOD_HEIGHT
-
         radii = []
-        for fit in self.currentPolynoms:
-            radii.append(
-                ((1 + (2 * fit[0] * evaluationY * meterPerPixelY + fit[1]) ** 2) ** 1.5) / np.absolute(2 * fit[0])
-            )
+        for fit in self.currentPolynomials:
+            if fit is not None:
+                radii.append(
+                    ((1 + (2 * fit[0] * EVALUATION_Y * MPP_Y + fit[1]) ** 2) ** 1.5) / np.absolute(2 * fit[0])
+                )
 
         if len(radii) > 0:
             return np.mean(radii)
         else:
             return None
 
-    def _segmentImage(self, img):
+    def getCenterOffset(self):
         """
-        Segments the image by extracting the ROI for lane detection.
-
-        Args:
-            img (np.ndarray): The image to extract the ROI of
+        Calculates the position offset of the car in the lane.
 
         Returns:
-            np.ndarray: An image only containing the pixels of the ROI
+            float: The offset of the car
         """
 
-        mask = np.zeros_like(img, dtype=np.uint8)
+        left_poly = self.currentPolynomials[1]
+        right_poly = self.currentPolynomials[0]
 
-        shape = img.shape
-        if len(shape) > 2:
-            channel_count = shape[2]
-            ignore_mask_color = (255,) * channel_count
+        if left_poly is not None and right_poly is not None:
+            bottom_left = left_poly[0] * HEIGHT ** 2 + left_poly[1] * HEIGHT + left_poly[2]
+            bottom_right = right_poly[0] * HEIGHT ** 2 + right_poly[1] * HEIGHT + right_poly[2]
+
+            lane_center = (bottom_right - bottom_left) / 2 + bottom_left
+
+            return round((DEFAULT_CENTER - lane_center) * MPP_X, 2)
         else:
-            ignore_mask_color = 255
-
-        cv.fillPoly(mask, np.array([self.adjustedROI], dtype=np.int32), ignore_mask_color)
-        return cv.bitwise_and(img, mask)
-
-    def _filterEdges(self, img):
-        """
-        Uses canny to filter edges out of the image.
-
-        Args:
-            img (np.ndarray): The image to filter the edges of
-
-        Returns:
-            np.ndarray: The filtered image
-        """
-
-        # Perform canny
-        canny = cv.Canny(cv.GaussianBlur(img, (5, 5), 0), 50, 150)
-
-        # Draw a black polygon around the ROI to remove edges of the ROI
-        cv.drawContours(
-            canny,
-            np.array([self.adjustedROI], dtype=np.int32),
-            False,
-            (0, 0, 0),
-            thickness=3
-        )
-
-        return canny
+            return 0
 
     @staticmethod
     def _filterColor(img):
         """
-        Filters yellow and white out of the given image.
+        Filters yellow and white markings out of the given image.
 
         Args:
             img (np.ndarray): The image to filter the color of
@@ -191,15 +140,12 @@ class Detector:
             np.ndarray: The image containing only white and yellow
         """
 
-        img_hsv = cv.cvtColor(img, cv.COLOR_RGB2HSV)
+        img_hsv = cv.cvtColor(img, cv.COLOR_BGR2HSV)
 
         mask_yellow = cv.inRange(img_hsv, MIN_YELLOW, MAX_YELLOW)
         mask_white = cv.inRange(img_hsv, MIN_WHITE, MAX_WHITE)
 
         combined = cv.bitwise_or(mask_white, mask_yellow)
-
-        # Connect artefacts together -> strengthen the line
-        combined = cv.morphologyEx(combined, cv.MORPH_CLOSE, CROSS_FILTER_5_5, iterations=2)
 
         return combined
 
@@ -209,7 +155,7 @@ class Detector:
         image.
 
         Args:
-            img (np.ndarray): The prefiltered, segmented and grayscaled image.
+            img (np.ndarray): The prefiltered, segmented and gray-scaled image.
 
         Returns:
             np.ndarray: The lane overlay.
@@ -218,10 +164,12 @@ class Detector:
         # Create the overlay image
         overlay = np.zeros((HEIGHT, WIDTH, 3), dtype="uint8")
 
-        # Check if less than a fiftieth of the image is white
-        if np.sum(img > 0) < WIDTH * HEIGHT // 50:
+        numUpdatedPoints = 0
+
+        # Check if less than a third of the image is white
+        if np.sum(img > 0) < WIDTH * HEIGHT // 3:
             # Use the performance variant of HoughLines
-            lines = cv.HoughLinesP(img, 1, np.pi / 180, 75, maxLineGap=40)
+            lines = cv.HoughLinesP(img, 1, np.pi / 180, 150, minLineLength=50, maxLineGap=50)
 
             if lines is not None:
                 # Go over every detected hough line
@@ -232,129 +180,89 @@ class Detector:
                     x1, y1 = (line[0], line[1])
                     x2, y2 = (line[2], line[3])
 
-                    # Calculate the angle of the line to the image
-                    lineAngle = cv.fastAtan2(y2 - y1, x2 - x1)
+                    # Point is from the left line, if it's left from the middle
+                    isLeftLine = int(any([x < DEFAULT_CENTER for x in [x1, x2]]))
 
-                    # Only vertical lines are allowed.
-                    # They have an angle between 25 and 335 degrees.
-                    # Other lines are considered as horizontal.
-                    if 25 < lineAngle < 335:
-                        # Draw detected line, if specified
-                        if DRAW_HOUGH:
-                            cv.line(
-                                img,
-                                (x1, y1),
-                                (x2, y2),
-                                (255, 255, 255),
-                                thickness=10
-                            )
+                    # Compare current point to existing point, if exists
+                    # Do this for every point (start and end)
+                    for x, y in [(x1, y1), (x2, y2)]:
+                        # Get the current point for that y-coordinate
+                        currentPoint = self.currentLinePoints[isLeftLine].get(y)
 
-                        # Point is from the left line, if the angle is bigger than 270 degrees
-                        isLeftLine = int(lineAngle > 270)
+                        # Save the new value, if there is no current point, or ...
+                        saveNewValue = currentPoint is None
 
-                        # Compare current point to existing point, if exists
-                        # Do this for every line (left and right)
-                        for i in range(2):
-                            y = int(line[i * 2 + 1])
-                            newX = int(line[i * 2])
+                        pointScore = 1
+                        if currentPoint is not None:
+                            currentX = currentPoint.getX()
+                            currentLifetime = currentPoint.getLifetime()
 
-                            # Get the current point for that y-coordinate
-                            currentPoint = self.currentLinePoints[isLeftLine].get(y)
+                            xDistance = abs(x - currentX)
+                            pointScore = max(x, currentX) / (min(x, currentX) + 1)
 
-                            # Save the new value, if there is no current point, or ...
-                            saveNewValue = currentPoint is None
+                            # ... if the euclidean distance is bigger than the tolerance, or the previous point
+                            # exceeded the lifetime
+                            saveNewValue = xDistance > LINE_TOLERANCE or currentLifetime > 0
+                            if xDistance < LINE_TOLERANCE:
+                                currentPoint.increaseLifetime()
 
-                            if currentPoint is not None:
-                                currentX = currentPoint.getX()
-                                currentLifetime = currentPoint.getLifetime()
+                        if saveNewValue:
+                            numUpdatedPoints += pointScore
+                            # Save the value
+                            self.currentLinePoints[isLeftLine].update({
+                                y: LinePoint(x)
+                            })
+        else:
+            print("too much white")
 
-                                # ... if the euclidean distance is smaller than the tolerance, or the previous point
-                                # exceeded the lifetime
-                                saveNewValue = abs(newX - currentX) < LINE_TOLERANCE or currentLifetime >= MAX_LIFETIME
+        totalPoints = len(self.currentLinePoints[0]) + len(self.currentLinePoints[1])
 
-                                # newX = (currentX + 2 * newX) // 3
-
-                            if saveNewValue:
-                                # Save the value
-                                self.currentLinePoints[isLeftLine].update({
-                                    y: LinePoint(newX)
-                                })
-
-        # Create lists for storing values
-        invalidPoints = []
+        # Create lists for storing the lines
         polyLines = []
-        potentialRightTop = ROI[0][0]
-        potentialLeftTop = ROI[3][0]
 
         # Go over each line
         for index, line in enumerate(self.currentLinePoints):
-            polyPoints = []
+            # Estimate a new polynomial if many points changed
+            fitNewPoly = numUpdatedPoints > totalPoints / TOTAL_POINTS_DIVIDER or self.currentPolyLines[index] is None
+
+            # Store points for the new polynomial
+            polyPointsY = []
+            polyPointsX = []
 
             # Go over every point in the line
             for y, linePoint in line.items():
-                linePoint.increaseLifetime()
+                linePoint.decreaseLifetime()
 
-                if linePoint.getLifetime() >= MAX_LIFETIME:
-                    # Schedule the point for deletion
-                    invalidPoints.append(y)
-                else:
+                if linePoint.getLifetime() > 0 and fitNewPoly:
                     # Schedule the point for the poly fit
-                    polyPoints.append([y, linePoint.getX()])
+                    polyPointsY.append(y)
+                    polyPointsX.append(linePoint.getX())
 
-            if len(polyPoints) > 0:
-                # Estimate the polynomial function
+            if fitNewPoly and len(polyPointsY) > 0:
                 fittedPoly = np.polyfit(
-                    [y for (y, _) in polyPoints],
-                    [x for (_, x) in polyPoints],
+                    polyPointsY,
+                    polyPointsX,
                     2
                 )
                 estimator = np.poly1d(fittedPoly)
-
-                # Save the polynom
-                self.currentPolynoms[index] = fittedPoly
 
                 # Get all points via the estimator
                 polyLine = np.int32([
                     estimator(Y_RANGE), Y_RANGE
                 ]).T
 
+                # Save the polynomial
+                self.currentPolynomials[index] = fittedPoly
+                self.currentPolyLines[index] = polyLine
+            else:
+                polyLine = self.currentPolyLines[index]
+
+            if polyLine is not None:
                 if index == 0:
                     polyLines.extend(polyLine)
-
-                    # Adjust the top ROI point of the right side
-                    potentialTop = (ROI[0][0] + estimator(ROI[0][1]) + LINE_TOLERANCE) // 2
-                    if potentialTop < WIDTH:
-                        potentialRightTop = potentialTop
                 else:
                     # Flip to ensure, that the filled poly is solid and not crossed
                     polyLines.extend(np.flipud(polyLine))
-
-                    # Adjust the top ROI point of the left side
-                    potentialTop = (ROI[3][0] + estimator(ROI[3][1]) - LINE_TOLERANCE) // 2
-                    if 0 < potentialTop:
-                        potentialLeftTop = potentialTop
-
-                # Draw the line marking
-                cv.polylines(
-                    overlay,
-                    [polyLine],
-                    False,
-                    color=LANE_COLOR,
-                    thickness=5
-                )
-
-        # Update the ROI points, if they are at least 50px away from each other
-        if potentialRightTop - potentialLeftTop > 50:
-            self.adjustedROI[0][0] = potentialRightTop
-            self.adjustedROI[3][0] = potentialLeftTop
-
-        # Remove invalid points from the dict
-        for invalidX in invalidPoints:
-            for i in range(2):
-                try:
-                    self.currentLinePoints[i].pop(invalidX)
-                except KeyError as e:
-                    pass
 
         if len(polyLines) > 0:
             # Fill the area between the lines
@@ -366,26 +274,57 @@ class Detector:
 
         return overlay
 
-    # ---------- [Object Detection] ---------- #
+    # ---------- [Sign Detection] ---------- #
 
-    def detectObjects(self, image):
+    @staticmethod
+    def detectSigns(image):
         """
-        Detects other objects (cars, etc.) in the given image.
+        Detects road signs in the given image.
 
         Args:
-            image (np.ndarray): The image to analyse and detect objects in
+            image (np.ndarray): The image to analyse and detect cars in
 
         Returns:
-            np.ndarray: The image with the detected objects
+            np.ndarray: An overlay with the detected signs
         """
 
-        cars_overlay = np.zeros((HEIGHT, WIDTH, 3), dtype="uint8")
+        image = cv.cvtColor(image, cv.COLOR_BGR2HSV)
 
-        cars = CARS_CASCADE.detectMultiScale(image, 1.15, 2)
-        for (x, y, w, h) in cars:
-            cv.rectangle(cars_overlay, (x, y), (x + w, y + h), color=(0, 255, 0), thickness=2)
+        sign_overlay = np.zeros((HEIGHT, WIDTH, 3), dtype="uint8")
 
-        return cars_overlay
+        # Fill ROI with black to prevent lane markings to interfere
+        cv.fillPoly(
+            image,
+            np.array([DEFAULT_ROI], dtype=np.int32),
+            (0, 0, 0)
+        )
+        cv.rectangle(
+            image,
+            (0, HEIGHT),
+            (WIDTH, HEIGHT - 150),
+            (0, 0, 0),
+            cv.FILLED
+        )
 
-        # https://techvidvan.com/tutorials/opencv-vehicle-detection-classification-counting/
-        # https://www.pyimagesearch.com/2019/12/02/opencv-vehicle-detection-tracking-and-speed-estimation/
+        # Green signs
+        sign_image = cv.inRange(image, MIN_GREEN_SIGN, MAX_GREEN_SIGN)
+        # Yellow signs
+        sign_image = cv.bitwise_or(sign_image, cv.inRange(image, MIN_YELLOW_SIGN, MAX_YELLOW_SIGN))
+
+        contours, _ = cv.findContours(sign_image, cv.RETR_EXTERNAL, cv.CHAIN_APPROX_SIMPLE)
+
+        for contour in contours:
+            if cv.contourArea(contour) > 75:
+                x, y, w, h = cv.boundingRect(contour)
+                cv.rectangle(sign_overlay, (x, y), (x + w, y+h), (0, 255, 0), 3)
+                cv.putText(
+                    sign_overlay,
+                    "Sign",
+                    (x, y - 15),
+                    cv.FONT_HERSHEY_PLAIN,
+                    1.25,
+                    (0, 255, 0),
+                    1
+                )
+
+        return sign_overlay

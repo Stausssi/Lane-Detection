@@ -1,6 +1,5 @@
 import cv2 as cv
 
-
 from config import MAX_LIFETIME
 
 

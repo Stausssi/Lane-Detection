@@ -1,5 +1,4 @@
 import numpy as np
-import cv2
 
 # All videos are 1280x720, so just hardcode this size
 IMAGE_SIZE = (1280, 720)
